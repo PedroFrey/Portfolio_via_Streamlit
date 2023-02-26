@@ -76,7 +76,7 @@ def stock_dashboard():
   tickerDF = tickerData.history(period='1d',start= start_date ,end= end_date )
 
   ## Visual assets
-  fig, ax1 = plt.subplots(nrows=1, ncols=1,figsize=(20,5))
+  fig_close_open, ax1 = plt.subplots(nrows=1, ncols=1,figsize=(20,5))
 
   ax1.plot(tickerDF.index,tickerDF.Close,linestyle='-',color="#EB2842", label='Close')
   ax1.plot(tickerDF.index,tickerDF.Open,linestyle='--',color='#38EB28', label='Open' )
@@ -84,6 +84,33 @@ def stock_dashboard():
   ax1.set_xlabel("Date")
   ax1.set_ylabel("Amount of Open & Close")
   ax1.set_title("Open & Close of Stock")
+
+  fig_volume, ax1 = plt.subplots(nrows=1, ncols=1,figsize=(20,5))
+
+  barplot = ax1.bar(x = tickerDF.index,
+          height = tickerDF.Volume/1_000_000,
+          width=0.8,
+          color="#075f63",
+          label='Volume')
+  # Function to add Values to Barplot
+  for bar in barplot:
+      height = bar.get_height()
+      if height!=0:
+        ax1.text(bar.get_x() + bar.get_width()/2, height,
+                f'{height:.2f}',
+                horizontalalignment ='center',
+                verticalalignment='bottom',
+                rotation=0)
+
+  ax1.legend()
+  ax1.set_xlabel("Date")
+  #ax1.set_ylabel("Volume divided 1.000.000")
+  ax1.set_title("Volume of Stock")
+
+  #Remove tick_ from y axis
+  ax1.tick_params(axis='y', which='both', length=0)
+  #Remove numbers from y axis
+  ax1.set_yticklabels([])
 
   # Data Grabing from Wikipedia
   # search for the wikipedia page about the company
@@ -121,7 +148,9 @@ def stock_dashboard():
     st.write("""  External visuals! """)
     #ext_left_column,ext_right_column = st.columns(2)
     #with ext_left_column:
-    st.pyplot(fig)
+    st.pyplot(fig_close_open)
+    st.write("---")
+    st.pyplot(fig_volume)
 # encapsulate the entire portfolio
 def portfolio_app():
     
