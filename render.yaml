@@ -1,0 +1,4 @@
+build:
+  language: python
+  buildCommand: poetry install
+  startCommand: poetry run streamlit run app.py
