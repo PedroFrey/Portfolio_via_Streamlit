@@ -2,14 +2,20 @@
 name = "portfolio-via-streamlit"
 version = "0.1.0"
 description = "Meu portfólio em Streamlit"
-authors = ["Seu Nome <seuemail@email.com>"]
+authors = ["P Frey <pedro.frey@email.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
 streamlit = "^1.32.0"
 pandas = "^2.2.2"
 matplotlib = "^3.8.4"
-# adicione outros pacotes que estiver usando
+yfinance = "^0.2.63"
+wikipedia = "^1.4.0"
+Pillow = "^11.2.1"
+requests = "^2.32.3"
+streamlit_lottie = "^0.0.5"
+
+
 
 [build-system]
 requires = ["poetry-core"]
