@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "portfolio-via-streamlit"
+version = "0.1.0"
+description = ""
+authors = ["Seu Nome <seuemail@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+streamlit = "^1.32.0"
+pandas = "^2.2.2"
+matplotlib = "^3.8.4"
+
+[tool.poetry.dev-dependencies]
+# (se tiver)
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
