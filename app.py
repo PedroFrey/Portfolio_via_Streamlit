@@ -9,6 +9,9 @@ from PIL import Image
 import requests
 from streamlit_lottie import st_lottie
 import urllib
+from matplotlib.ticker import FuncFormatter
+from datetime import date
+
 
 ## Dashboard Assets
 urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/cash-management-dashboard.png', "cash-management-dashboard.png")
