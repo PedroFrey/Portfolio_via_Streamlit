@@ -158,7 +158,6 @@ def stock_dashboard():
     st.pyplot(fig_close_open)
     st.write("---")
     st.pyplot(fig_volume)
-
 ######### Fim do Stock App
 ######### Inicio do My Portfolio
 def portfolio_app():
@@ -320,7 +319,7 @@ def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), even
     df["capital_necessario"] = capital_necessario
 
     return df
-# Início do Retirement App
+######### Inicio Retirement App
 def retirement_app():
     st.title("💰 Simulador de Aposentadoria")
 
@@ -374,11 +373,11 @@ def retirement_app():
     
     ax.yaxis.set_major_formatter(FuncFormatter(formatar_valor))
     ax.set_xticks(df["data"][::12])
-    ax.set_xticklabels(df["mes_nome"][::12], rotation=45)
+    ax.set_xticklabels(df["ano"][::12], rotation=45)
 
-    ax.set_xlabel("Mês/Ano")
+    ax.set_xlabel("Ano")
     ax.set_ylabel("Patrimônio acumulado")
-    ax.set_title("Evolução do Patrimônio")
+    #ax.set_title("Evolução do Patrimônio")
     ax.legend()
     ax.grid(True)
 
@@ -391,6 +390,7 @@ def retirement_app():
     df_formatado["retirada"] = df_formatado["retirada"].map(lambda x: f'R$ {x:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
     df_formatado["data"] = df_formatado["data"].dt.strftime('%d/%m/%Y')
 
+    # st.subheader("Outros")
     st.subheader("📈 Evolução dos dados")
     st.dataframe(df_formatado[["data", "patrimonio", "fase", "aporte", "retirada"]].set_index("data"))
 ######### Fim Retirement App
@@ -437,8 +437,8 @@ def price_comparator():
     
     st.markdown("---")
     st.caption("Tip: Quantity can be in kg, liters, units, packs, etc.")
-######### Inicio price_comparator App
-#########Inicio App Puxa Assunto
+######### Fim de price_comparator App
+######### Inicio App Puxa Assunto
 def Puxa_Conversa():
   st.set_page_config(page_title="💬 Puxa-Conversa", page_icon="💡", layout="wide")
   st.title("💬 Puxa-Conversa")
@@ -579,7 +579,6 @@ def Puxa_Conversa():
   if st.button("🔄 Reiniciar tópicos"):
       st.session_state.assuntos_exibidos = set()
       st.success("A sequência de tópicos foi reiniciada.")
-
 ######### Fim app puxa assunto
 
 page_names_to_funcs = {
