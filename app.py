@@ -437,11 +437,159 @@ def price_comparator():
     st.caption("Tip: Quantity can be in kg, liters, units, packs, etc.")
 ######### Fim app unit_price
 
+#Inicio App Puxa Assunto
+# -----------------------
+# Configuração da Página
+# -----------------------
+def Puxa_Conversa():
+  st.set_page_config(page_title="💬 Puxa-Conversa", page_icon="💡", layout="wide")
+  st.title("💬 Puxa-Conversa")
+  st.caption("Clique em 'Próximo tópico' para ver um novo assunto. Nenhuma pergunta será repetida.")
+
+  # Tópicos base
+  assuntos_base = [
+    "Se pudesse jantar com qualquer pessoa, quem seria?",
+    "Qual habilidade você gostaria de aprender instantaneamente?",
+    "Se ganhasse na loteria, o que faria primeiro?",
+    "Qual filme te marcou profundamente?",
+    "Se pudesse morar em qualquer lugar do mundo, onde seria?",
+    "O que te faz rir até hoje?",
+    "Qual é sua lembrança de infância favorita?",
+    "Se pudesse trocar de vida com alguém por um dia, quem seria?",
+    "Se pudesse viver em qualquer época da história, qual escolheria?",
+    "Você acredita em destino ou coincidência?",
+    "Qual seria o seu superpoder ideal?",
+    "Qual é o cheiro que te traz boas memórias?",
+    "Se sua vida fosse um livro, qual seria o título?",
+    "Você acredita em vida fora da Terra?",
+    "Qual é sua comida de conforto?",
+    "Se tivesse que escolher uma trilha sonora para sua vida, qual seria?",
+    "Qual foi a melhor viagem que já fez?",
+    "O que você aprendeu com o seu maior erro?",
+    "Qual é a sua maior qualidade?",
+    "E seu maior defeito?",
+    "Qual é o melhor conselho que você já recebeu?",
+    "O que você faria se soubesse que não pode fracassar?",
+    "Você prefere o nascer ou o pôr do sol?",
+    "Qual é a sua estação do ano favorita e por quê?",
+    "O que não pode faltar no seu dia a dia?",
+    "Se pudesse falar com seu eu de 10 anos atrás, o que diria?",
+    "O que você mais admira nas pessoas?",
+    "Qual música representa um momento marcante da sua vida?",
+    "Qual foi o momento mais engraçado da sua vida?",
+    "Você prefere mar ou montanha?",
+    "Qual é seu maior sonho no momento?",
+    "Qual hábito você gostaria de mudar?",
+    "Você acredita que tudo acontece por um motivo?",
+    "Qual livro mudou sua forma de pensar?",
+    "O que te inspira a continuar nos dias difíceis?",
+    "Se tivesse 1 minuto em rede nacional, o que diria?",
+    "Com que personagem fictício você mais se identifica?",
+    "O que você gostaria de ter aprendido mais cedo na vida?",
+    "Qual é a sua palavra favorita?",
+    "Se pudesse apagar uma memória, qual seria?",
+    "Qual é o seu maior medo irracional?",
+    "Que presente simples te deixaria muito feliz?",
+    "Qual seria o emprego dos seus sonhos?",
+    "Você prefere surpresas ou planejar tudo?",
+    "Qual foi sua maior conquista até agora?",
+    "O que te faz perder a noção do tempo?",
+    "Qual animal você acha que representa sua personalidade?",
+    "Se sua vida fosse um filme, qual ator te interpretaria?",
+    "Qual cheiro te faz lembrar de alguém especial?",
+    "Você prefere conversar ou ouvir?",
+    "Qual é a primeira coisa que você nota em alguém?",
+    "Se tivesse uma máquina do tempo, o que mudaria no seu passado?",
+    "Qual o gesto mais gentil que alguém já teve com você?",
+    "Qual é a sua memória mais engraçada de infância?",
+    "Você se considera mais racional ou emocional?",
+    "Se pudesse dominar um instrumento musical agora, qual seria?",
+    "Qual pessoa te inspira na vida real?",
+    "Qual é o seu maior arrependimento?",
+    "Você acredita que as pessoas podem mudar?",
+    "O que você faria num dia perfeito?",
+    "Se tivesse que viver num filme, qual escolheria?",
+    "Qual foi a última coisa que te surpreendeu?",
+    "Qual seria sua última refeição perfeita?",
+    "Qual foi a maior lição que aprendeu com um amigo?",
+    "Se pudesse eliminar um hábito da sociedade, qual seria?",
+    "Você prefere silêncio ou música?",
+    "Se só pudesse salvar três objetos da sua casa, quais seriam?",
+    "Qual é a sua maior saudade?",
+    "O que te deixa mais ansioso?",
+    "Qual foi o melhor elogio que já recebeu?",
+    "Que conselho você daria para alguém começando a vida adulta?",
+    "O que você faria se tivesse um dia inteiro sem obrigações?",
+    "Qual tecnologia você gostaria que existisse hoje?",
+    "O que é felicidade pra você?",
+    "Qual profissão você jamais conseguiria exercer?",
+    "O que você gostaria de dizer a alguém, mas nunca disse?",
+    "Se tivesse que viver em outro país, qual escolheria?",
+    "Qual é o seu ritual para relaxar?",
+    "Que momento você gostaria de reviver?",
+    "Se pudesse fazer uma pergunta ao universo e receber a resposta, qual seria?",
+    "Você se considera mais noturno ou diurno?",
+    "O que você faria se não tivesse medo?",
+    "Qual é o seu lema de vida?",
+    "Se pudesse conversar com uma versão sua de outra dimensão, o que perguntaria?",
+    "Qual foi a coisa mais corajosa que já fez?",
+    "O que você gostaria que as pessoas lembrassem sobre você?",
+  ]
+
+  # Sessão inicial
+  if "assuntos_exibidos" not in st.session_state:
+      st.session_state.assuntos_exibidos = set()
+  if "topicos_pessoais" not in st.session_state:
+      st.session_state.topicos_pessoais = []
+
+  # Lista completa atual
+  assuntos_totais = assuntos_base + st.session_state.topicos_pessoais
+  assuntos_restantes = [a for a in assuntos_totais if a not in st.session_state.assuntos_exibidos]
+
+  # Exibição da pergunta
+  st.markdown("### 💡 Tópico de conversa:")
+
+  if len(assuntos_restantes) > 0:
+      if st.button("👉 Próximo tópico"):
+          proximo = random.choice(assuntos_restantes)
+          st.session_state.assuntos_exibidos.add(proximo)
+          st.session_state.ultimo_topico = proximo
+
+      if "ultimo_topico" in st.session_state:
+          st.success(st.session_state.ultimo_topico)
+  else:
+      st.warning("🎉 Você já viu todos os tópicos disponíveis!")
+      st.info("Adicione mais tópicos abaixo para continuar.")
+
+  # Formulário para adicionar novos
+  st.markdown("---")
+  st.subheader("➕ Adicione seu próprio tópico")
+
+  with st.form("add_topic"):
+      novo_topico = st.text_input("Digite um novo tópico:")
+      adicionar = st.form_submit_button("Adicionar")
+      if adicionar and novo_topico.strip():
+          if novo_topico not in st.session_state.topicos_pessoais:
+              st.session_state.topicos_pessoais.append(novo_topico.strip())
+              st.session_state.assuntos_exibidos.discard(novo_topico.strip())
+              st.success("✅ Tópico adicionado!")
+          else:
+              st.warning("⚠️ Esse tópico já está na lista.")
+
+  # Reiniciar (opcional)
+  st.markdown("---")
+  if st.button("🔄 Reiniciar tópicos"):
+      st.session_state.assuntos_exibidos = set()
+      st.success("A sequência de tópicos foi reiniciada.")
+
+# Fim app puxa assunto
 page_names_to_funcs = {
     "My Portfolio": portfolio_app,
     "Retirement App": retirement_app,
     "Stocks App": stock_dashboard,
-    "Price_comparator App": price_comparator
+    "Price_comparator App": price_comparator,
+    "Puxa-Conversa":Puxa_Conversa
+    
 }
 st.set_page_config(page_title="P. Frey's Creative Showcase", page_icon=':computer:',layout='wide')
 selected_page = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
