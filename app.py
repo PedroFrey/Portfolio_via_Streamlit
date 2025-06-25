@@ -15,13 +15,14 @@ from streamlit_elements import elements, mui
 import random
 
 
-## Dashboard Assets
+## My Portfolio Visual Assets
 urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/cash-management-dashboard.png', "cash-management-dashboard.png")
 img_finacial = Image.open('cash-management-dashboard.png')
 
 urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/pmo.png', "pmo.png")
 img_pmo = Image.open('pmo.png')
 
+## Stocks App Assets
 stocks = {
     'Technology': {
         "Apple Inc.": 'AAPL',
@@ -38,7 +39,8 @@ stocks = {
         'Amazon.com, Inc.': 'AMZN',
         'Target Corporation': 'TGT'
     }
-}
+    }
+
 # Convert the dictionary to a DataFrame
 # In this rewritten code, the result variable is initialized as an empty list, and then two nested for loops are used to iterate over the stocks dictionary.
 # For each category in stocks, the code iterates over each company and ticker pair in the companies dictionary associated with that category. For each pair, a tuple
@@ -54,7 +56,7 @@ df = pd.DataFrame(result, columns=['Category', 'Company', 'Ticker'])
 end_date_default = datetime.date.today()
 start_date_default = end_date_default - datetime.timedelta(days=30)
 
-# Encapsulate stock app
+######### Inicio do Stock App
 def stock_dashboard():
     
   ## Header Section
@@ -156,7 +158,9 @@ def stock_dashboard():
     st.pyplot(fig_close_open)
     st.write("---")
     st.pyplot(fig_volume)
-# encapsulate the entire portfolio
+
+######### Fim do Stock App
+######### Inicio do My Portfolio
 def portfolio_app():
     
   # Tab configurations
@@ -250,8 +254,8 @@ def portfolio_app():
     """
     st.write(sub_string3)
     st.markdown("[>](https://www.google.com)")
-
-# Função de simulação
+######### Fim do My Portfolio
+######### Preparação para Retirement App
 def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), eventos_extraordinarios=None):
     r_mensal = (1 + params["retorno_real_anual"])**(1/12) - 1
     meses_ate_aposentar = (params["idade_aposentadoria"] - params["idade_atual"]) * 12
@@ -316,9 +320,7 @@ def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), even
     df["capital_necessario"] = capital_necessario
 
     return df
-
-
-# Função retirement_app
+# Início do Retirement App
 def retirement_app():
     st.title("💰 Simulador de Aposentadoria")
 
@@ -391,8 +393,8 @@ def retirement_app():
 
     st.subheader("📈 Evolução dos dados")
     st.dataframe(df_formatado[["data", "patrimonio", "fase", "aporte", "retirada"]].set_index("data"))
-# fim app aposentadoria
-######### Inicio app unit_price
+######### Fim Retirement App
+######### Inicio price_comparator App
 def price_comparator():
     def calculate_unit_price(price, quantity):
         return price / quantity if quantity != 0 else float('inf')
@@ -435,12 +437,8 @@ def price_comparator():
     
     st.markdown("---")
     st.caption("Tip: Quantity can be in kg, liters, units, packs, etc.")
-######### Fim app unit_price
-
-#Inicio App Puxa Assunto
-# -----------------------
-# Configuração da Página
-# -----------------------
+######### Inicio price_comparator App
+#########Inicio App Puxa Assunto
 def Puxa_Conversa():
   st.set_page_config(page_title="💬 Puxa-Conversa", page_icon="💡", layout="wide")
   st.title("💬 Puxa-Conversa")
@@ -582,14 +580,14 @@ def Puxa_Conversa():
       st.session_state.assuntos_exibidos = set()
       st.success("A sequência de tópicos foi reiniciada.")
 
-# Fim app puxa assunto
+######### Fim app puxa assunto
+
 page_names_to_funcs = {
     "My Portfolio": portfolio_app,
     "Retirement App": retirement_app,
     "Stocks App": stock_dashboard,
-    "Price_comparator App": price_comparator,
-    "Puxa-Conversa":Puxa_Conversa
-    
+    "Price Comparator App": price_comparator,
+    "Puxa Conversa":Puxa_Conversa
 }
 st.set_page_config(page_title="P. Frey's Creative Showcase", page_icon=':computer:',layout='wide')
 selected_page = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
