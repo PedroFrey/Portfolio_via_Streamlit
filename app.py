@@ -333,7 +333,7 @@ def retirement_app():
 
     valor_desejado_por_ano = st.sidebar.number_input("Renda desejada na aposentadoria (por mês)", min_value=0, value=1_500, step=100)*12
 
-    retorno_real_anual = st.sidebar.number_input("Rentabilidade real anual (%)", min_value=0.0, max_value=1.0, value=0.04, step=0.01)
+    retorno_real_anual = st.sidebar.number_input("Rentabilidade real anual (%)", min_value=0.0, max_value=500.0, value=4.0, step=0.1)/100
 
     aporte_mensal = st.sidebar.number_input("Aporte mensal até aposentadoria", min_value=0, value=300, step=100)
 
@@ -373,11 +373,11 @@ def retirement_app():
     
     ax.yaxis.set_major_formatter(FuncFormatter(formatar_valor))
     ax.set_xticks(df["data"][::12])
-    ax.set_xticklabels(df["ano"][::12], rotation=45)
+    ax.set_xticklabels(df["ano"][::12], rotation=90)
 
     ax.set_xlabel("Ano")
     ax.set_ylabel("Patrimônio acumulado")
-    #ax.set_title("Evolução do Patrimônio")
+    
     ax.legend()
     ax.grid(True)
 
@@ -389,8 +389,27 @@ def retirement_app():
     df_formatado["aporte"] = df_formatado["aporte"].map(lambda x: f'R$ {x:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
     df_formatado["retirada"] = df_formatado["retirada"].map(lambda x: f'R$ {x:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
     df_formatado["data"] = df_formatado["data"].dt.strftime('%d/%m/%Y')
+    
+    # Exibir resumo
+    st.subheader("📢 Highlights")
+    Ano_Aposentadoria = df[df["fase"] == "Aposentadoria"]["data"].min().strftime('%Y')
+    st.caption(f'Ano Aposentadoria: {Ano_Aposentadoria}')
 
-    # st.subheader("Outros")
+    Patrimonio_maximo = df["patrimonio"].max()
+    st.caption(f'Patrimônio máximo: R${Patrimonio_maximo:,.2f}')
+    
+    Patrimonio_inicio_aposentadoria = df[df["fase"] == "Crescimento"]["patrimonio"].max()
+    st.caption(f'Patrimônio no Início da Aposentadoria: R${Patrimonio_inicio_aposentadoria:,.2f}')
+    filtro = (df["fase"] == "Aposentadoria") & (df["patrimonio"] == 0)
+    data_perda = df[filtro]["data"].min()
+
+    if pd.notna(data_perda):
+        Ano_perda_de_cobertura = data_perda.strftime('%Y')
+    else:
+      Ano_perda_de_cobertura = "Nunca perdeu cobertura"
+    st.caption(f'Ano de iníco de perda de cobertura: {Ano_perda_de_cobertura}')
+
+
     st.subheader("📈 Evolução dos dados")
     st.dataframe(df_formatado[["data", "patrimonio", "fase", "aporte", "retirada"]].set_index("data"))
 ######### Fim Retirement App
