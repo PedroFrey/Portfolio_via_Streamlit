@@ -19,7 +19,7 @@ import random
 urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/cash-management-dashboard.png', "cash-management-dashboard.png")
 img_finacial = Image.open('cash-management-dashboard.png')
 
-urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/pmo.png', "pmo.png")
+urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/pmo.PNG', "pmo.png")
 img_pmo = Image.open('pmo.png')
 
 ## Stocks App Assets
