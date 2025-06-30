@@ -239,7 +239,7 @@ def portfolio_app():
     with text_column:
       st.subheader(" Data Visualization for Project Management")
       st.write("Project Management Office (PMO) Dashboard: Real-Time Insights for [Project/Program/Portfolio] Performance")
-      st.markdown("[Explore PMO Dashboard for Project Insights](https://www.google.com)")
+      st.markdown("[Explore PMO Dashboard for Project Insights](https://app.powerbi.com/view?r=eyJrIjoiYWMyZTIxOTItNzk2Ni00N2Q3LWE4YmUtNGViMWE0NjE3NzFlIiwidCI6ImUyZjc3ZDAwLTAxNjMtNGNmNi05MmIwLTQ4NGJhZmY5ZGY3ZCJ9)")
   # Closing Section
   with st.container():
     st.write("---")
