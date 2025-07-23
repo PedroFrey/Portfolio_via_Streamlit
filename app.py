@@ -255,7 +255,7 @@ def portfolio_app():
     st.markdown("[>](https://www.google.com)")
 ######### Fim do My Portfolio
 ######### Preparação para Retirement App
-def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), eventos_extraordinarios=None):
+def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), eventos_extraordinarios=[]):
     # Inflação e retorno
     retorno_real_anual = params["retorno_real_anual"]
     inflacao_anual = params["inflacao_anual"]
@@ -368,10 +368,20 @@ def retirement_app():
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("📅 Eventos extraordinários")
-    evento1_data = st.sidebar.date_input("Data do evento", value=date(2035, 12, 1))
-    evento1_valor = st.sidebar.number_input("Valor do evento", value=0, step=1000)
+    qtd_eventos = st.sidebar.number_input("Quantidade de eventos", min_value=0, max_value=20, value=0, step=1)
 
-    eventos = [{"data": evento1_data.strftime('%Y-%m-%d'), "valor": evento1_valor}] if evento1_valor != 0 else []
+    eventos = []
+    for i in range(qtd_eventos):
+        st.sidebar.markdown(f"**Evento {i+1}**")
+        data = st.sidebar.date_input(f"Data do evento {i+1}", value=date(2035, 12, 1), key=f"data_{i}")
+        valor = st.sidebar.number_input(f"Valor do evento {i+1}", value=0.0, step=100.0, key=f"valor_{i}")
+        positivo = st.sidebar.checkbox(f"É um crédito? (Receita)", value=True, key=f"positivo_{i}")
+
+        valor_final = valor if positivo else -valor
+        eventos.append({
+            "data": data.strftime('%Y-%m-%d'),
+            "valor": valor_final
+        })
 
     params = {
         "idade_atual": idade_atual,
