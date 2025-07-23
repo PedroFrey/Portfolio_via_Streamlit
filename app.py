@@ -256,32 +256,47 @@ def portfolio_app():
 ######### Fim do My Portfolio
 ######### Preparação para Retirement App
 def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), eventos_extraordinarios=None):
-    r_mensal = (1 + params["retorno_real_anual"])**(1/12) - 1
+    # Inflação e retorno
+    retorno_real_anual = params["retorno_real_anual"]
+    inflacao_anual = params["inflacao_anual"]
+
+    # Cálculo correto do retorno nominal e inflação mensal
+    retorno_nominal_anual = (1 + retorno_real_anual) * (1 + inflacao_anual) - 1
+    r_mensal = (1 + retorno_nominal_anual) ** (1/12) - 1
+    inflacao_mensal = (1 + inflacao_anual) ** (1/12) - 1
+
+    # Períodos
     meses_ate_aposentar = (params["idade_aposentadoria"] - params["idade_atual"]) * 12
     meses_apos_aposentar = (params["expectativa_vida"] - params["idade_aposentadoria"]) * 12
     total_meses = meses_ate_aposentar + meses_apos_aposentar
 
+    # Retirada base mensal (valor informado pelo usuário convertido de ano para mês)
+    retirada_base_mensal = params["valor_desejado_por_ano"] / 12
+
+    # Capital necessário (não usado diretamente, mas mantido para exibição)
     capital_necessario = params["valor_desejado_por_ano"] / params["taxa_retirada_anual"]
 
+    # Cálculo do aporte (se não fornecido)
     if params["aporte_mensal"] is None:
-        aporte = capital_necessario * r_mensal / ((1 + r_mensal)**meses_ate_aposentar - 1)
+        aporte = capital_necessario * r_mensal / ((1 + r_mensal) ** meses_ate_aposentar - 1)
     else:
         aporte = params["aporte_mensal"]
 
-    retirada_mensal = params["valor_desejado_por_ano"] / 12
-
+    # Datas
     datas = pd.date_range(start=inicio, periods=total_meses, freq='MS')
     df = pd.DataFrame(index=range(total_meses))
     df["data"] = datas
     df["ano"] = df["data"].dt.year
     df["mes_nome"] = df["data"].dt.strftime("%b/%Y")
 
+    # Eventos
     eventos_dict = {}
     if eventos_extraordinarios:
         for evento in eventos_extraordinarios:
             data_evento = pd.to_datetime(evento["data"]).replace(day=1)
             eventos_dict[data_evento] = eventos_dict.get(data_evento, 0) + evento["valor"]
 
+    # Simulação
     patrimonio = params.get("patrimonio", 0)
     patrimonio_lista = []
     aporte_lista = []
@@ -292,31 +307,44 @@ def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), even
         data_mes = datas[mes]
         fase = "Crescimento" if mes < meses_ate_aposentar else "Aposentadoria"
 
+        # Crescimento do patrimônio
         patrimonio *= (1 + r_mensal)
+
+        # Correção da retirada pela inflação acumulada
+        inflacao_acumulada = (1 + inflacao_mensal) ** mes
 
         if fase == "Crescimento":
             patrimonio += aporte
             aporte_lista.append(aporte)
             retirada_lista.append(0)
         else:
-            patrimonio -= retirada_mensal
-            retirada_lista.append(retirada_mensal)
+            retirada_corrigida = retirada_base_mensal * inflacao_acumulada
+            patrimonio -= retirada_corrigida
+            retirada_lista.append(retirada_corrigida)
             aporte_lista.append(0)
 
+        # Eventos extraordinários
         if data_mes in eventos_dict:
             patrimonio += eventos_dict[data_mes]
 
+        # Evita patrimônio negativo
         patrimonio = max(patrimonio, 0)
+
+        # Salvar no histórico
         patrimonio_lista.append(patrimonio)
         fase_lista.append(fase)
 
+    # Construir DataFrame final
     df["patrimonio"] = patrimonio_lista
     df["aporte"] = aporte_lista
     df["retirada"] = retirada_lista
     df["fase"] = fase_lista
     df["aporte_mensal"] = aporte
-    df["retirada_mensal"] = retirada_mensal
+    df["retirada_base_mensal"] = retirada_base_mensal
     df["capital_necessario"] = capital_necessario
+    df["inflacao_anual"] = inflacao_anual
+    df["retorno_real_anual"] = retorno_real_anual
+    df["retorno_nominal_anual"] = retorno_nominal_anual
 
     return df
 ######### Inicio Retirement App
@@ -326,18 +354,17 @@ def retirement_app():
     st.sidebar.header("🧠 Dados do Usuário")
 
     idade_atual = st.sidebar.number_input("Idade atual", min_value=0, max_value=120, value=18, step=1)
-
     idade_aposentadoria = st.sidebar.number_input("Idade para aposentadoria", min_value=idade_atual, max_value=120, value=65, step=1)
-
     expectativa_vida = st.sidebar.number_input("Expectativa de vida", min_value=idade_aposentadoria, max_value=150, value=85, step=1)
 
-    valor_desejado_por_ano = st.sidebar.number_input("Renda desejada na aposentadoria (por mês)", min_value=0, value=1_500, step=100)*12
+    valor_desejado_por_mes = st.sidebar.number_input("Renda desejada na aposentadoria (por mês)", min_value=0, value=1500, step=100)
+    valor_desejado_por_ano = valor_desejado_por_mes * 12
 
-    retorno_real_anual = st.sidebar.number_input("Rentabilidade real anual (%)", min_value=0.0, max_value=500.0, value=4.0, step=0.1)/100
+    retorno_real_anual = st.sidebar.number_input("Retorno real esperado (% ao ano)", min_value=0.0, max_value=100.0, value=4.0, step=0.1) / 100
+    inflacao_anual = st.sidebar.number_input("Inflação estimada (% ao ano)", min_value=0.0, max_value=100.0, value=5.0, step=0.1) / 100
 
     aporte_mensal = st.sidebar.number_input("Aporte mensal até aposentadoria", min_value=0, value=300, step=100)
-
-    patrimonio_inicial = st.sidebar.number_input("Patrimônio inicial", min_value=0, value=0_000, step=500)
+    patrimonio_inicial = st.sidebar.number_input("Patrimônio inicial", min_value=0, value=0, step=500)
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("📅 Eventos extraordinários")
@@ -353,6 +380,7 @@ def retirement_app():
         "valor_desejado_por_ano": valor_desejado_por_ano,
         "taxa_retirada_anual": 1.0,
         "retorno_real_anual": retorno_real_anual,
+        "inflacao_anual": inflacao_anual,
         "aporte_mensal": aporte_mensal,
         "patrimonio": patrimonio_inicial,
     }
