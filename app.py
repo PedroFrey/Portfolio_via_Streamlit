@@ -13,7 +13,7 @@ from matplotlib.ticker import FuncFormatter
 from datetime import date
 from streamlit_elements import elements, mui
 import random
-
+# import streamlit.components.v1 as components
 
 ## My Portfolio Visual Assets
 urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/cash-management-dashboard.png', "cash-management-dashboard.png")
@@ -497,145 +497,275 @@ def price_comparator():
 ######### Fim de price_comparator App
 ######### Inicio App Puxa Assunto
 def Puxa_Conversa():
-  st.set_page_config(page_title="💬 Puxa-Conversa", page_icon="💡", layout="wide")
-  st.title("💬 Puxa-Conversa")
-  st.caption("Clique em 'Próximo tópico' para ver um novo assunto. Nenhuma pergunta será repetida.")
-
-  # Tópicos base
-  assuntos_base = [
-    "Se pudesse jantar com qualquer pessoa, quem seria?",
-    "Qual habilidade você gostaria de aprender instantaneamente?",
-    "Se ganhasse na loteria, o que faria primeiro?",
-    "Qual filme te marcou profundamente?",
-    "Se pudesse morar em qualquer lugar do mundo, onde seria?",
-    "O que te faz rir até hoje?",
-    "Qual é sua lembrança de infância favorita?",
-    "Se pudesse trocar de vida com alguém por um dia, quem seria?",
-    "Se pudesse viver em qualquer época da história, qual escolheria?",
-    "Você acredita em destino ou coincidência?",
-    "Qual seria o seu superpoder ideal?",
-    "Qual é o cheiro que te traz boas memórias?",
-    "Se sua vida fosse um livro, qual seria o título?",
-    "Você acredita em vida fora da Terra?",
-    "Qual é sua comida de conforto?",
-    "Se tivesse que escolher uma trilha sonora para sua vida, qual seria?",
-    "Qual foi a melhor viagem que já fez?",
-    "O que você aprendeu com o seu maior erro?",
-    "Qual é a sua maior qualidade?",
-    "E seu maior defeito?",
-    "Qual é o melhor conselho que você já recebeu?",
-    "O que você faria se soubesse que não pode fracassar?",
-    "Você prefere o nascer ou o pôr do sol?",
-    "Qual é a sua estação do ano favorita e por quê?",
-    "O que não pode faltar no seu dia a dia?",
-    "Se pudesse falar com seu eu de 10 anos atrás, o que diria?",
-    "O que você mais admira nas pessoas?",
-    "Qual música representa um momento marcante da sua vida?",
-    "Qual foi o momento mais engraçado da sua vida?",
-    "Você prefere mar ou montanha?",
-    "Qual é seu maior sonho no momento?",
-    "Qual hábito você gostaria de mudar?",
-    "Você acredita que tudo acontece por um motivo?",
-    "Qual livro mudou sua forma de pensar?",
-    "O que te inspira a continuar nos dias difíceis?",
-    "Se tivesse 1 minuto em rede nacional, o que diria?",
-    "Com que personagem fictício você mais se identifica?",
-    "O que você gostaria de ter aprendido mais cedo na vida?",
-    "Qual é a sua palavra favorita?",
-    "Se pudesse apagar uma memória, qual seria?",
-    "Qual é o seu maior medo irracional?",
-    "Que presente simples te deixaria muito feliz?",
-    "Qual seria o emprego dos seus sonhos?",
-    "Você prefere surpresas ou planejar tudo?",
-    "Qual foi sua maior conquista até agora?",
-    "O que te faz perder a noção do tempo?",
-    "Qual animal você acha que representa sua personalidade?",
-    "Se sua vida fosse um filme, qual ator te interpretaria?",
-    "Qual cheiro te faz lembrar de alguém especial?",
-    "Você prefere conversar ou ouvir?",
-    "Qual é a primeira coisa que você nota em alguém?",
-    "Se tivesse uma máquina do tempo, o que mudaria no seu passado?",
-    "Qual o gesto mais gentil que alguém já teve com você?",
-    "Qual é a sua memória mais engraçada de infância?",
-    "Você se considera mais racional ou emocional?",
-    "Se pudesse dominar um instrumento musical agora, qual seria?",
-    "Qual pessoa te inspira na vida real?",
-    "Qual é o seu maior arrependimento?",
-    "Você acredita que as pessoas podem mudar?",
-    "O que você faria num dia perfeito?",
-    "Se tivesse que viver num filme, qual escolheria?",
-    "Qual foi a última coisa que te surpreendeu?",
-    "Qual seria sua última refeição perfeita?",
-    "Qual foi a maior lição que aprendeu com um amigo?",
-    "Se pudesse eliminar um hábito da sociedade, qual seria?",
-    "Você prefere silêncio ou música?",
-    "Se só pudesse salvar três objetos da sua casa, quais seriam?",
-    "Qual é a sua maior saudade?",
-    "O que te deixa mais ansioso?",
-    "Qual foi o melhor elogio que já recebeu?",
-    "Que conselho você daria para alguém começando a vida adulta?",
-    "O que você faria se tivesse um dia inteiro sem obrigações?",
-    "Qual tecnologia você gostaria que existisse hoje?",
-    "O que é felicidade pra você?",
-    "Qual profissão você jamais conseguiria exercer?",
-    "O que você gostaria de dizer a alguém, mas nunca disse?",
-    "Se tivesse que viver em outro país, qual escolheria?",
-    "Qual é o seu ritual para relaxar?",
-    "Que momento você gostaria de reviver?",
-    "Se pudesse fazer uma pergunta ao universo e receber a resposta, qual seria?",
-    "Você se considera mais noturno ou diurno?",
-    "O que você faria se não tivesse medo?",
-    "Qual é o seu lema de vida?",
-    "Se pudesse conversar com uma versão sua de outra dimensão, o que perguntaria?",
-    "Qual foi a coisa mais corajosa que já fez?",
-    "O que você gostaria que as pessoas lembrassem sobre você?",
-  ]
-
-  # Sessão inicial
-  if "assuntos_exibidos" not in st.session_state:
-      st.session_state.assuntos_exibidos = set()
-  if "topicos_pessoais" not in st.session_state:
-      st.session_state.topicos_pessoais = []
-
-  # Lista completa atual
-  assuntos_totais = assuntos_base + st.session_state.topicos_pessoais
-  assuntos_restantes = [a for a in assuntos_totais if a not in st.session_state.assuntos_exibidos]
-
-  # Exibição da pergunta
-  st.markdown("### 💡 Tópico de conversa:")
-
-  if len(assuntos_restantes) > 0:
-      if st.button("👉 Próximo tópico"):
-          proximo = random.choice(assuntos_restantes)
-          st.session_state.assuntos_exibidos.add(proximo)
-          st.session_state.ultimo_topico = proximo
-
-      if "ultimo_topico" in st.session_state:
-          st.success(st.session_state.ultimo_topico)
-  else:
-      st.warning("🎉 Você já viu todos os tópicos disponíveis!")
-      st.info("Adicione mais tópicos abaixo para continuar.")
-
-  # Formulário para adicionar novos
-  st.markdown("---")
-  st.subheader("➕ Adicione seu próprio tópico")
-
-  with st.form("add_topic"):
-      novo_topico = st.text_input("Digite um novo tópico:")
-      adicionar = st.form_submit_button("Adicionar")
-      if adicionar and novo_topico.strip():
-          if novo_topico not in st.session_state.topicos_pessoais:
-              st.session_state.topicos_pessoais.append(novo_topico.strip())
-              st.session_state.assuntos_exibidos.discard(novo_topico.strip())
-              st.success("✅ Tópico adicionado!")
-          else:
-              st.warning("⚠️ Esse tópico já está na lista.")
-
-  # Reiniciar (opcional)
-  st.markdown("---")
-  if st.button("🔄 Reiniciar tópicos"):
-      st.session_state.assuntos_exibidos = set()
-      st.success("A sequência de tópicos foi reiniciada.")
+    st.set_page_config(page_title="💬 Puxa-Conversa", page_icon="💡", layout="wide")
+    
+    # Inicializar session state
+    if 'current_index' not in st.session_state:
+        st.session_state.current_index = 0
+    if 'categoria' not in st.session_state:
+        st.session_state.categoria = 'profundas'
+    if 'perguntas_shuffled' not in st.session_state:
+        st.session_state.perguntas_shuffled = {}
+    
+    # Perguntas por categoria
+    perguntas_profundas = [
+        "Você acredita em destino ou coincidência?",
+        "O que você aprendeu com o seu maior erro?",
+        "Se pudesse apagar uma memória, qual seria?",
+        "O que você faria se soubesse que não pode fracassar?",
+        "Se pudesse fazer uma pergunta ao universo e receber a resposta, qual seria?",
+        "O que você gostaria que as pessoas lembrassem sobre você?",
+        "Qual é o seu maior medo em relação ao futuro?",
+        "Se você pudesse ter uma conversa com seu eu do passado, o que diria?",
+        "O que significa sucesso para você?",
+        "Qual momento da sua vida te transformou completamente?"
+    ]
+    
+    perguntas_normais = [
+        "Qual habilidade você gostaria de aprender instantaneamente?",
+        "Qual é sua lembrança de infância favorita?",
+        "Qual seria sua última refeição perfeita?",
+        "Você prefere mar ou montanha?",
+        "Qual o gesto mais gentil que alguém já teve com você?",
+        "Qual é a sua estação do ano favorita e por quê?",
+        "Se ganhasse na loteria, o que faria primeiro?",
+        "Qual é seu hobby secreto ou que poucos conhecem?",
+        "Qual superpoder você escolheria ter?",
+        "Qual é a sua música favorita para cantar no chuveiro?"
+    ]
+    
+    # Header
+    st.markdown("""
+    <div style='text-align: center; padding: 2rem 0;'>
+        <h1 style='font-size: 3rem; margin-bottom: 0.5rem; background: linear-gradient(45deg, #FF6B6B, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>💬 Puxa-Conversa</h1>
+        <p style='color: #666; font-size: 1.1rem;'>Deslize pelas perguntas como no Tinder!</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Category Toggle
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        categoria_nova = st.selectbox(
+            "Escolha a categoria:",
+            options=['profundas', 'normais'],
+            format_func=lambda x: f"🧠 Profundas" if x == 'profundas' else f"🎈 Normais",
+            index=0 if st.session_state.categoria == 'profundas' else 1,
+            key='categoria_select'
+        )
+        
+        # Reset index se mudou categoria
+        if categoria_nova != st.session_state.categoria:
+            st.session_state.categoria = categoria_nova
+            st.session_state.current_index = 0
+    
+    # Embaralhar perguntas se necessário
+    perguntas = perguntas_profundas if st.session_state.categoria == 'profundas' else perguntas_normais
+    
+    if st.session_state.categoria not in st.session_state.perguntas_shuffled:
+        shuffled = perguntas.copy()
+        random.shuffle(shuffled)
+        st.session_state.perguntas_shuffled[st.session_state.categoria] = shuffled
+    
+    perguntas_atual = st.session_state.perguntas_shuffled[st.session_state.categoria]
+    
+    # Funções de navegação
+    def next_card():
+        st.session_state.current_index = (st.session_state.current_index + 1) % len(perguntas_atual)
+    
+    def prev_card():
+        st.session_state.current_index = (st.session_state.current_index - 1) % len(perguntas_atual)
+    
+    def reset_cards():
+        st.session_state.current_index = 0
+        # Re-embaralhar
+        shuffled = perguntas.copy()
+        random.shuffle(shuffled)
+        st.session_state.perguntas_shuffled[st.session_state.categoria] = shuffled
+    
+    # Card principal
+    pergunta_atual = perguntas_atual[st.session_state.current_index]
+    proxima_pergunta = perguntas_atual[(st.session_state.current_index + 1) % len(perguntas_atual)]
+    
+    # CSS para o card estilo Tinder
+    st.markdown("""
+    <style>
+    .tinder-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 2rem 0;
+        min-height: 400px;
+    }
+    
+    .card-stack {
+        position: relative;
+        width: 350px;
+        height: 400px;
+        perspective: 1000px;
+    }
+    
+    .card {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #ffffff, #f8fafc);
+        border-radius: 24px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 6px 12px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .card-main {
+        z-index: 2;
+        transform: translateZ(0);
+    }
+    
+    .card-main:hover {
+        transform: translateY(-10px) scale(1.02);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.15), 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .card-background {
+        z-index: 1;
+        transform: scale(0.95) translateY(20px);
+        opacity: 0.7;
+        background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    }
+    
+    .card-text {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #1e293b;
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+    
+    .card-counter {
+        font-size: 0.9rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+    
+    .controls-container {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+    }
+    
+    .tinder-btn {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .tinder-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    }
+    
+    .btn-dislike {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+    
+    .btn-like {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+    
+    .btn-back {
+        background: linear-gradient(135deg, #6b7280, #4b5563);
+        width: 50px;
+        height: 50px;
+    }
+    
+    .btn-reset {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        width: 50px;
+        height: 50px;
+    }
+    
+    .instructions {
+        text-align: center;
+        color: #64748b;
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+    
+    @media (max-width: 768px) {
+        .card-stack {
+            width: 320px;
+            height: 380px;
+        }
+        .card {
+            padding: 1.5rem;
+        }
+        .card-text {
+            font-size: 1.2rem;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Display do card
+    st.markdown(f"""
+<div class="tinder-container">
+    <div class="card-stack">
+        <div class="card card-main">
+            <div>
+                <div class="card-text">
+                    {pergunta_atual}
+                </div>
+                <div class="card-counter">
+                    {st.session_state.current_index + 1} de {len(perguntas_atual)}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+    
+    # Controles principais
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if st.button("↶ Voltar", key="back_btn", help="Pergunta anterior", use_container_width=True):
+            prev_card()
+            st.rerun()
+    
+    with col2:
+        if st.button("➡️ Próxima", key="next_btn", help="Próxima pergunta", use_container_width=True):
+            next_card()
+            st.rerun()
+    
+    with col3:
+        if st.button("↻ Resetar", key="reset_btn", help="Resetar e embaralhar", use_container_width=True):
+            reset_cards()
+            st.rerun()
+    
+    # Instruções
+    st.markdown("""
+    <div class="instructions">
+        <p><strong>Como navegar:</strong></p>
+        <p>👆 <strong>Clique no ícone 📱</strong> acima do card para avançar</p>
+        <p>↶ Voltar • ↻ Resetar e embaralhar</p>
+    </div>
+    """, unsafe_allow_html=True)
 ######### Fim app puxa assunto
 
 page_names_to_funcs = {
