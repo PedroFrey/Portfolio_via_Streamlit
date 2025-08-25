@@ -15,6 +15,15 @@ from streamlit_elements import elements, mui
 import random
 # import streamlit.components.v1 as components
 
+PHONE_NUMBER = os.environ.get("PHONE_NUMBER")
+CALL_ME_BOT_API_KEY = os.environ.get("CALL_ME_BOT_API_KEY")
+message = "Entraram no Render"
+# Envio via CallMeBot
+requests.get(
+    url=f'https://api.callmebot.com/whatsapp.php?phone={PHONE_NUMBER}&text={quote(message)}&apikey={CALL_ME_BOT_API_KEY}'
+)
+
+
 ## My Portfolio Visual Assets
 urllib.request.urlretrieve('https://raw.githubusercontent.com/PedroFrey/Portfolio_via_Streamlit/refs/heads/master/cash-management-dashboard.png', "cash-management-dashboard.png")
 img_finacial = Image.open('cash-management-dashboard.png')
