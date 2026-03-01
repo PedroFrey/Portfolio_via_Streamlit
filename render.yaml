@@ -1,4 +1,6 @@
 build:
   language: python
+  python_version: 3.11
+  poetry_version: 1.5.1
   buildCommand: poetry install
   startCommand: poetry run streamlit run app.py
