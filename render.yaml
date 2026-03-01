@@ -1,6 +1,7 @@
 build:
   language: python
-  python_version: 3.11
-  poetry_version: 1.5.1
-  buildCommand: poetry install
+  buildCommand: |
+    # Instala a versão correta do Poetry
+    curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.5 python3 -
+    poetry install
   startCommand: poetry run streamlit run app.py
