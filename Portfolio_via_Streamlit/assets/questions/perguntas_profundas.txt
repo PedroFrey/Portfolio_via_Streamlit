@@ -1,0 +1,10 @@
+"Você acredita em destino ou coincidência?",
+"O que você aprendeu com o seu maior erro?",
+"Se pudesse apagar uma memória, qual seria?",
+"O que você faria se soubesse que não pode fracassar?",
+"Se pudesse fazer uma pergunta ao universo e receber a resposta, qual seria?",
+"O que você gostaria que as pessoas lembrassem sobre você?",
+"Qual é o seu maior medo em relação ao futuro?",
+"Se você pudesse ter uma conversa com seu eu do passado, o que diria?",
+"O que significa sucesso para você?",
+"Qual momento da sua vida te transformou completamente?"
