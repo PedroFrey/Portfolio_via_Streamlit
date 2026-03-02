@@ -3,7 +3,7 @@ from Portfolio_via_Streamlit.apps import portfolio, retirement , puxa_conversa#,
 from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp_message
 
 # Chama ao iniciar a app
-# send_whatsapp_message("Entraram no Render")
+send_whatsapp_message("Entraram no Render")
 
 page_names_to_funcs = {
     "Puxa Conversa": puxa_conversa.Puxa_Conversa,

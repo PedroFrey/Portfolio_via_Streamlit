@@ -2,9 +2,7 @@
 import os
 import requests
 from urllib.parse import quote
-
-PHONE_NUMBER = os.environ.get("PHONE_NUMBER")
-CALL_ME_BOT_API_KEY = os.environ.get("CALL_ME_BOT_API_KEY")
+from Portfolio_via_Streamlit.config import PHONE_NUMBER , CALL_ME_BOT_API_KEY
 
 def send_whatsapp_message(message: str):
     """

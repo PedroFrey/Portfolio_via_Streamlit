@@ -94,3 +94,7 @@ def simular_aposentadoria(params, inicio=date.today().strftime("%Y-%m-%d"), even
     df["retorno_nominal_anual"] = retorno_nominal_anual
 
     return df
+
+# --- Bloco para teste no terminal ---
+if __name__ == "__main__":
+    simular_aposentadoria()
