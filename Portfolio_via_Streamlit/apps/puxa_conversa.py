@@ -12,15 +12,30 @@ def Puxa_Conversa():
     # --- Configuração da página ---
     st.set_page_config(page_title="💬 Puxa-Conversa", page_icon="💡", layout="wide")
 
-    # --- Session state ---
-    if 'current_index' not in st.session_state:
-        st.session_state.current_index = 0
-    if 'categoria' not in st.session_state:
-        st.session_state.categoria = 'normais'
-    if 'perguntas' not in st.session_state:
-        st.session_state.perguntas = {'profundas': [], 'normais': []}
-    if 'perguntas_shuffled' not in st.session_state:
-        st.session_state.perguntas_shuffled = {'profundas': [], 'normais': []}
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+        st.markdown("""
+        <div style='padding: 1rem 0;'>
+            <h1 style='font-size: 2rem; margin-bottom: 0.5rem; background: linear-gradient(45deg, #FF6B6B, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>
+            💬 Puxa-Conversa
+            </h1>
+            <p style='color: #666; font-size: 0.9rem;'>
+            Navegue pelas perguntas!
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # # --- Session state ---
+    estado_padrao = {
+        "current_index": 0,
+        "categoria": "normais",
+        "perguntas": {"profundas": [], "normais": []},
+        "perguntas_shuffled": {"profundas": [], "normais": []},
+    }
+
+    for chave, valor in estado_padrao.items():
+        st.session_state.setdefault(chave, valor)
 
     # --- Função: carregar perguntas ---
     def carregar_perguntas():

@@ -1,17 +1,21 @@
 import streamlit as st
-from Portfolio_via_Streamlit.apps import portfolio, retirement , puxa_conversa#, stocks, price_comparator
+from Portfolio_via_Streamlit.apps import portfolio, retirement , puxa_conversa,price_comparator #,stocks
 from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp_message
+
+#==========
+# Informações Gerais
+# Para Rodar no Navegador: python -m streamlit run app.py
+#==========
 
 # Chama ao iniciar a app
 send_whatsapp_message("Entraram no Render")
 
 page_names_to_funcs = {
-    "Puxa Conversa": puxa_conversa.Puxa_Conversa,
-    "Retirement App": retirement.retirement_app,
     "My Portfolio": portfolio.portfolio_app,
+    "Retirement App": retirement.retirement_app,
+    "Puxa Conversa": puxa_conversa.Puxa_Conversa,
+    "Price Comparator App": price_comparator.price_comparator,
 #     "Stocks App": stocks.stock_dashboard,
-#     "Price Comparator App": price_comparator.price_comparator,
-
 }
 
 st.set_page_config(

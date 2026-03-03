@@ -2,8 +2,15 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from datetime import date
-import pandas as pd
 from Portfolio_via_Streamlit.services.retirement_service import simular_aposentadoria
+
+def formatar_valor(x, _):
+    return f'R$ {x:,.0f}'.replace(",", ".")
+
+def formatar_moeda(valor):
+    if valor is None:
+        return ""
+    return f'R$ {valor:,.2f}'.replace(",", "X").replace(".", ",").replace("X", ".")
 
 def retirement_app():
 
@@ -47,7 +54,6 @@ def retirement_app():
         "idade_aposentadoria": idade_aposentadoria,
         "expectativa_vida": expectativa_vida,
         "valor_desejado_por_ano": valor_desejado_por_ano,
-        "taxa_retirada_anual": 1.0,
         "retorno_real_anual": retorno_real_anual,
         "inflacao_anual": inflacao_anual,
         "aporte_mensal": aporte_mensal,
@@ -66,9 +72,6 @@ def retirement_app():
     #Marcar o inicio da aposentadoria comlinha vermelha
     aposentadoria_inicio = df[df["fase"] == "Aposentadoria"]["data"].iloc[0]
     ax.axvline(x=aposentadoria_inicio, color='red', linestyle="--", label="Início da aposentadoria")
-
-    def formatar_valor(x, _):
-        return f'R$ {x:,.0f}'.replace(",", ".")
     
     ax.yaxis.set_major_formatter(FuncFormatter(formatar_valor))
     ax.set_xticks(df["data"][::12])
@@ -78,37 +81,44 @@ def retirement_app():
     ax.set_ylabel("Patrimônio acumulado")
     
     ax.legend()
-    ax.grid(True)
+    ax.grid(True, linestyle='--' ,linewidth=0.5 ,alpha=0.4)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_alpha(0.75)
+    ax.spines['bottom'].set_alpha(0.75)
 
     st.pyplot(fig)
-    # Exibir tabela
-    # Formatar colunas numéricas para moeda
+
+    # Formatar tabela
+
     df_formatado = df.copy()
-    df_formatado["patrimonio"] = df_formatado["patrimonio"].map(lambda x: f'R$ {x:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
-    df_formatado["aporte"] = df_formatado["aporte"].map(lambda x: f'R$ {x:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
-    df_formatado["retirada"] = df_formatado["retirada"].map(lambda x: f'R$ {x:,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
-    df_formatado["data"] = df_formatado["data"].dt.strftime('%d/%m/%Y')
-    
-    # Exibir resumo
+    df_formatado["data"] = df_formatado["data"].dt.strftime('%d/%m/%Y').fillna("")
+
+    colunas_monetarias = ["patrimonio", "aporte", "retirada"]
+    for col in colunas_monetarias:
+        df_formatado[col] = df_formatado[col].map(formatar_moeda)
+
+    # Exibir Destaques
     st.subheader("📢 Destaques")
-    Ano_Aposentadoria = df[df["fase"] == "Aposentadoria"]["data"].min().strftime('%Y')
-    st.caption(f'Ano Aposentadoria: {Ano_Aposentadoria}')
 
-    Patrimonio_maximo = df["patrimonio"].max()
-    st.caption(f'Patrimônio máximo: R${Patrimonio_maximo:,.2f}')
-    
-    Patrimonio_inicio_aposentadoria = df[df["fase"] == "Crescimento"]["patrimonio"].max()
-    st.caption(f'Patrimônio no Início da Aposentadoria: R${Patrimonio_inicio_aposentadoria:,.2f}')
-    filtro = (df["fase"] == "Aposentadoria") & (df["patrimonio"] == 0)
-    data_perda = df[filtro]["data"].min()
+    ano_aposentadoria = df[df["fase"] == "Aposentadoria"]["data"].min().strftime('%Y')
+    patrimonio_inicio_aposentadoria = df[df["fase"] == "Crescimento"]["patrimonio"].max()
+    st.caption(f'Você poderá se aposentar em {ano_aposentadoria}, com um patrimônio estimado de R${patrimonio_inicio_aposentadoria:,.2f}.')
 
-    if pd.notna(data_perda):
-        Ano_perda_de_cobertura = data_perda.strftime('%Y')
-    else:
-      Ano_perda_de_cobertura = "Nunca perdeu cobertura"
-    st.caption(f'Ano de iníco de perda de cobertura: {Ano_perda_de_cobertura}')
+    patrimonio_maximo = df["patrimonio"].max()
+    st.caption(f'Patrimônio máximo: R${patrimonio_maximo:,.2f}')
 
+    renda_inicial = df.retirada[df.fase == "Aposentadoria"].min()
+    st.caption(f'Esse valor permitirá uma renda mensal inicial de aproximadamente: R${renda_inicial:,.2f}')
+      
+    data_perda = df.data[(df.fase == "Aposentadoria") & (df.patrimonio == 0)].min()
+    if data_perda is None or str(data_perda) == "NaT":
+        final_da_frase = "não se esgotaria."
+    elif data_perda :
+        data_perda = data_perda.strftime('%Y')
+        final_da_frase = f'se esgotaria em {data_perda}.'
+    st.caption(f'Pela projeção, a cobertura financeira {final_da_frase}')
 
+    # Exibir tabela
     st.subheader("📈 Evolução dos dados")
     st.dataframe(df_formatado[["data", "patrimonio", "fase", "aporte", "retirada"]].set_index("data"))
-######### Fim Retirement App

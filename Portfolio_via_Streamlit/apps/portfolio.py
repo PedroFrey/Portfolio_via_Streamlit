@@ -22,7 +22,6 @@ lottie_server = load_lottie("server.json")
 # Função principal do Portfolio App
 # ------------------------
 def portfolio_app():
-    st.set_page_config(page_title="V1 Portfolio P. Frey", layout="wide")
 
     # --- Header ---
     with st.container():
