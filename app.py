@@ -8,7 +8,10 @@ from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp
 #==========
 
 # Chama ao iniciar a app
-send_whatsapp_message("Entraram no Render")
+if "notified" not in st.session_state:
+    send_whatsapp_message("Entraram no Render")
+    st.session_state.notified = True
+
 
 page_names_to_funcs = {
     "My Portfolio": portfolio.portfolio_app,
