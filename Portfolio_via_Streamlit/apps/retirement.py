@@ -28,7 +28,7 @@ def retirement_app():
     inflacao_anual = st.sidebar.number_input("Inflação estimada (% ao ano)", min_value=0.0, max_value=100.0, value=5.0, step=0.1) / 100
     
     # Aporte mensal default como 20% do salario
-    aporte_mensal = st.sidebar.number_input("Aporte mensal até aposentadoria", min_value=0, value= int(renda_mensal * 0.2), step=100)
+    aporte_mensal = st.sidebar.number_input("Aporte mensal até aposentadoria", min_value=0, value= 324, step=100)
     patrimonio_inicial = st.sidebar.number_input("Patrimônio inicial", min_value=0, value=0, step=500)
 
     st.sidebar.markdown("---")

@@ -5,6 +5,9 @@ from streamlit_lottie import st_lottie
 import os
 from Portfolio_via_Streamlit.config import IMAGES_DIR
 from Portfolio_via_Streamlit.services.lotties_service import load_lottie
+from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp_message
+# Chama ao iniciar a app
+send_whatsapp_message("Entraram no Render, na página de landing (Portfolio)")
 
 # ------------------------
 # Carregar imagens
