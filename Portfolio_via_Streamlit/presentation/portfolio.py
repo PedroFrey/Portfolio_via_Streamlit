@@ -1,37 +1,46 @@
-# apps/portfolio.py
+"""Pagina de apresentacao (bio + projetos em destaque).
+
+O disparo de notificacao via WhatsApp saiu do escopo do modulo (efeito
+colateral no import, que disparava a cada reload) e foi para dentro da
+funcao da pagina, com um guard de ``st.session_state`` para no maximo uma
+notificacao por sessao de usuario.
+"""
+
+from __future__ import annotations
+
 import streamlit as st
 from PIL import Image
 from streamlit_lottie import st_lottie
-import os
+
 from Portfolio_via_Streamlit.config import IMAGES_DIR
+from Portfolio_via_Streamlit.observability import safe_page, track_event
 from Portfolio_via_Streamlit.services.lotties_service import load_lottie
 from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp_message
-# Chama ao iniciar a app
-send_whatsapp_message("Entraram no Render, na página de landing (Portfolio)")
 
-# ------------------------
-# Carregar imagens
-# ------------------------
-img_financial = Image.open(os.path.join(IMAGES_DIR, 'cash-management-dashboard.png'))
-img_pmo = Image.open(os.path.join(IMAGES_DIR, 'pmo.png'))
+_NOTIFIED_FLAG = "_portfolio_view_notified"
 
-# ------------------------
-# Carregar Lotties do service
-# ------------------------
-lottie_what_do_i_do = load_lottie("what_do_i_do.json")
-lottie_server = load_lottie("server.json")
 
-# ------------------------
-# Função principal do Portfolio App
-# ------------------------
-def portfolio_app():
+def _notify_once_per_session() -> None:
+    if st.session_state.get(_NOTIFIED_FLAG):
+        return
+    send_whatsapp_message("Entraram no Render, na pagina de landing (Portfolio)")
+    st.session_state[_NOTIFIED_FLAG] = True
 
-    # --- Header ---
+
+@safe_page("portfolio")
+def portfolio_app() -> None:
+    _notify_once_per_session()
+    track_event("portfolio_page_viewed")
+
+    img_financial = Image.open(IMAGES_DIR / "cash-management-dashboard.png")
+    img_pmo = Image.open(IMAGES_DIR / "pmo.png")
+    lottie_what_do_i_do = load_lottie("what_do_i_do.json")
+    lottie_server = load_lottie("server.json")
+
     with st.container():
         st.subheader("Discover my Portfolio: P. Frey's Creative Showcase")
         st.write("Explore my work in data science with emphasis on data visualization!")
 
-    # --- Apresentação ---
     with st.container():
         st.write("---")
         left_col, right_col = st.columns(2)
@@ -41,16 +50,16 @@ def portfolio_app():
             st.write(
                 """
                 I am a data scientist specializing in data visualization.
-                I transform complex data sets into meaningful insights through dashboards, charts, and interactive visuals.
+                I transform complex data sets into meaningful insights through
+                dashboards, charts, and interactive visuals.
                 """
             )
             st.write("[View my GitHub profile](https://github.com/PedroFrey)")
         with right_col:
-            if lottie_what_do_i_do:  # exibe somente se carregou
+            if lottie_what_do_i_do:
                 st_lottie(lottie_what_do_i_do, key="lottie_what_do_i_do")
             st.write(":computer:")
 
-    # --- Primeiro projeto ---
     with st.container():
         st.write("---")
         image_col, text_col = st.columns((1, 2))
@@ -58,10 +67,11 @@ def portfolio_app():
             st.image(img_financial)
         with text_col:
             st.subheader("Data Visualization for Financial Analysis")
-            st.write("Financial Insights Dashboard: Comprehensive analysis of [Company/Market/Industry].")
+            st.write(
+                "Financial Insights Dashboard: Comprehensive analysis of [Company/Market/Industry]."
+            )
             st.markdown("[Explore Financial Dashboard](https://www.google.com)")
 
-    # --- Segundo projeto ---
     with st.container():
         st.write("---")
         image_col, text_col = st.columns((1, 2))
@@ -71,10 +81,10 @@ def portfolio_app():
             st.subheader("Project Management Dashboard")
             st.write("Real-time insights for Project/Program/Portfolio performance.")
             st.markdown(
-                "[Explore PMO Dashboard](https://app.powerbi.com/view?r=eyJrIjoiYWMyZTIxOTItNzk2Ni00N2Q3LWE4YmUtNGViMWE0NjE3NzFlIiwidCI6ImUyZjc3ZDAwLTAxNjMtNGNmNi05MmIwLTQ4NGJhZmY5ZGY3ZCJ9)"
+                "[Explore PMO Dashboard]"
+                "(https://app.powerbi.com/view?r=eyJrIjoiYWMyZTIxOTItNzk2Ni00N2Q3LWE4YmUtNGViMWE0NjE3NzFlIiwidCI6ImUyZjc3ZDAwLTAxNjMtNGNmNi05MmIwLTQ4NGJhZmY5ZGY3ZCJ9)"
             )
 
-    # --- Fechamento ---
     with st.container():
         st.write("---")
         if lottie_server:
@@ -83,6 +93,7 @@ def portfolio_app():
         st.write(
             """
             To get in touch or inquire about projects, feel free to send me an email.
-            I am always open to collaborations and new opportunities in data science and visualization.
+            I am always open to collaborations and new opportunities in data science
+            and visualization.
             """
         )
