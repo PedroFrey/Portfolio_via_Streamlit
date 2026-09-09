@@ -1,5 +1,5 @@
 """Entry point. Rodar com: streamlit run app.py
-
+ 
 Responsabilidades deste arquivo, e so dele:
 - st.set_page_config (deve ser chamado uma unica vez, antes de qualquer
   outro comando Streamlit).
