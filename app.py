@@ -1,28 +1,41 @@
+"""Entry point. Rodar com: streamlit run app.py
+
+Responsabilidades deste arquivo, e so dele:
+- st.set_page_config (deve ser chamado uma unica vez, antes de qualquer
+  outro comando Streamlit).
+- Inicializacao de observabilidade (logging + Sentry) uma vez por processo.
+- Definicao da navegacao nativa (st.navigation/st.Page).
+"""
+
+from __future__ import annotations
+
 import streamlit as st
-from Portfolio_via_Streamlit.apps import portfolio, retirement , puxa_conversa,price_comparator #,stocks
-from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp_message
 
-#==========
-# Informações Gerais
-# Para Rodar no Navegador: python -m streamlit run app.py
-#==========
-
-# Chama ao iniciar a app
-# send_whatsapp_message("Entraram no Render")
-
-page_names_to_funcs = {
-    "My Portfolio": portfolio.portfolio_app,
-    "Retirement App": retirement.retirement_app,
-    "Puxa Conversa": puxa_conversa.Puxa_Conversa,
-    "Price Comparator App": price_comparator.price_comparator,
-#     "Stocks App": stocks.stock_dashboard,
-}
+from Portfolio_via_Streamlit.logging_config import configure_logging
+from Portfolio_via_Streamlit.observability import init_sentry
 
 st.set_page_config(
     page_title="P. Frey's Creative Showcase",
-    page_icon=':computer:',
-    layout='wide'
+    page_icon=":computer:",
+    layout="wide",
 )
 
-selected_page = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
-page_names_to_funcs[selected_page]()
+configure_logging()
+init_sentry()
+
+from Portfolio_via_Streamlit.presentation.home import home_app  # noqa: E402
+from Portfolio_via_Streamlit.presentation.portfolio import portfolio_app  # noqa: E402
+from Portfolio_via_Streamlit.presentation.price_comparator import price_comparator  # noqa: E402
+from Portfolio_via_Streamlit.presentation.puxa_conversa import puxa_conversa_app  # noqa: E402
+from Portfolio_via_Streamlit.presentation.retirement import retirement_app  # noqa: E402
+
+pages = [
+    st.Page(home_app, title="Home", icon="🏠", default=True),
+    st.Page(portfolio_app, title="My Portfolio", icon="🧑‍💻"),
+    st.Page(retirement_app, title="Retirement App", icon="💰"),
+    st.Page(price_comparator, title="Price Comparator App", icon="🛒"),
+    st.Page(puxa_conversa_app, title="Puxa Conversa", icon="💬"),
+]
+
+navigation = st.navigation(pages)
+navigation.run()

@@ -1,0 +1,3 @@
+from Portfolio_via_Streamlit.presentation.puxa_conversa import puxa_conversa_app
+
+puxa_conversa_app()

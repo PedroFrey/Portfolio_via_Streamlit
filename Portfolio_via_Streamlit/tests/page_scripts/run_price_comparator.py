@@ -1,0 +1,3 @@
+from Portfolio_via_Streamlit.presentation.price_comparator import price_comparator
+
+price_comparator()

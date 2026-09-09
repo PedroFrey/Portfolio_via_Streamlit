@@ -1,4 +1,42 @@
-.env
-.venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtualenv / package managers
+.venv/
+venv/
+.uv/
+uv.lock.bak
+
+# Streamlit secrets (NEVER commit real secrets)
+.streamlit/secrets.toml
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# gcloud / devcontainer local state (accidentally committed before)
+.config/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
