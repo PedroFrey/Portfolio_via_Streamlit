@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-analytics = ["posthog>=3.5,<4.0"]
+analytics = ["posthog>=3.5,<8.0"]
 
 [dependency-groups]
 dev = [
