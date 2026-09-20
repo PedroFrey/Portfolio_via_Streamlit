@@ -1,32 +1,3 @@
-"""Pagina de apresentacao (bio + projetos em destaque).
-
-O disparo de notificacao via WhatsApp saiu do escopo do modulo (efeito
-colateral no import, que disparava a cada reload) e foi para dentro da
-funcao da pagina, com um guard de ``st.session_state`` para no maximo uma
-notificacao por sessao de usuario.
-"""
-
-from __future__ import annotations
-
-import streamlit as st
-from PIL import Image
-from streamlit_lottie import st_lottie
-
-from Portfolio_via_Streamlit.config import IMAGES_DIR
-from Portfolio_via_Streamlit.observability import safe_page, track_event
-from Portfolio_via_Streamlit.services.lotties_service import load_lottie
-from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp_message
-
-_NOTIFIED_FLAG = "_portfolio_view_notified"
-
-
-def _notify_once_per_session() -> None:
-    if st.session_state.get(_NOTIFIED_FLAG):
-        return
-    send_whatsapp_message("Entraram no Render, na pagina de landing (Portfolio)")
-    st.session_state[_NOTIFIED_FLAG] = True
-
-
 @safe_page("portfolio")
 def portfolio_app() -> None:
     _notify_once_per_session()
@@ -38,8 +9,10 @@ def portfolio_app() -> None:
     lottie_server = load_lottie("server.json")
 
     with st.container():
-        st.subheader("Discover my Portfolio: P. Frey's Creative Showcase")
-        st.write("Explore my work in data science with emphasis on data visualization!")
+        st.subheader("Discover my Portfolio: P. Frey's Analytics Showcase")
+        st.write(
+            "Explore interactive data products, Streamlit web apps, and automated analytics solutions."
+        )
 
     with st.container():
         st.write("---")
@@ -49,9 +22,9 @@ def portfolio_app() -> None:
             st.write("##")
             st.write(
                 """
-                I am a data scientist specializing in data visualization.
-                I transform complex data sets into meaningful insights through
-                dashboards, charts, and interactive visuals.
+                Senior BI Developer & Analytics Engineer focused on data modeling, automation, and scalable platforms.
+                Here you can find interactive web apps and data products built with Python (Streamlit)
+                designed for scenario simulation, decision automation, and operational efficiency.
                 """
             )
             st.write("[View my GitHub profile](https://github.com/PedroFrey)")
@@ -68,7 +41,7 @@ def portfolio_app() -> None:
         with text_col:
             st.subheader("Data Visualization for Financial Analysis")
             st.write(
-                "Financial Insights Dashboard: Comprehensive analysis of [Company/Market/Industry]."
+                "Financial Insights Dashboard: Comprehensive analysis of Cash Management and Corporate Metrics."
             )
             st.markdown("[Explore Financial Dashboard](https://www.google.com)")
 
@@ -79,7 +52,7 @@ def portfolio_app() -> None:
             st.image(img_pmo)
         with text_col:
             st.subheader("Project Management Dashboard")
-            st.write("Real-time insights for Project/Program/Portfolio performance.")
+            st.write("Real-time insights for Project, Program, and Portfolio performance.")
             st.markdown(
                 "[Explore PMO Dashboard]"
                 "(https://app.powerbi.com/view?r=eyJrIjoiYWMyZTIxOTItNzk2Ni00N2Q3LWE4YmUtNGViMWE0NjE3NzFlIiwidCI6ImUyZjc3ZDAwLTAxNjMtNGNmNi05MmIwLTQ4NGJhZmY5ZGY3ZCJ9)"
@@ -92,8 +65,8 @@ def portfolio_app() -> None:
         st.write("##")
         st.write(
             """
-            To get in touch or inquire about projects, feel free to send me an email.
-            I am always open to collaborations and new opportunities in data science
-            and visualization.
+            To get in touch or discuss potential projects, feel free to reach out.
+            I am open to collaborations and opportunities in Business Intelligence, 
+            Analytics Engineering, and Data Automation.
             """
         )
