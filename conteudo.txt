@@ -1,0 +1,1809 @@
+===== ./.python-version =====
+3.11.9
+
+===== ./Portfolio_via_Streamlit/__init__.py =====
+"""Portfolio_via_Streamlit — portfolio pessoal em Streamlit.
+
+Estrutura:
+    domain/        Logica de negocio pura (sem I/O, sem Streamlit) — testavel isoladamente.
+    services/      Camada de I/O: notificacoes, assets externos. Chama domain/ quando aplicavel.
+    presentation/  Paginas Streamlit (UI). Nao deve conter regra de negocio.
+"""
+
+__version__ = "0.2.0"
+
+===== ./Portfolio_via_Streamlit/logging_config.py =====
+"""Logging estruturado (JSON) via structlog.
+
+Por que: `print()` espalhado pelo codigo antigo nao e pesquisavel, nao tem
+nivel, e nao carrega contexto (qual sessao? qual pagina?). Logs em JSON no
+stdout ja sao suficientes para o Render (que captura stdout) sem precisar
+de infra extra.
+
+Uso:
+    from Portfolio_via_Streamlit.logging_config import get_logger
+    log = get_logger(__name__)
+    log.info("simulacao_executada", idade_atual=30, duracao_ms=42)
+"""
+
+from __future__ import annotations
+
+import logging
+import sys
+
+import structlog
+
+from Portfolio_via_Streamlit.config import settings
+
+_CONFIGURED = False
+
+
+def configure_logging() -> None:
+    """Configura structlog + stdlib logging uma unica vez por processo."""
+    global _CONFIGURED
+    if _CONFIGURED:
+        return
+
+    logging.basicConfig(
+        format="%(message)s",
+        stream=sys.stdout,
+        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    )
+
+    shared_processors: list[structlog.types.Processor] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+    ]
+
+    if settings.environment == "development":
+        renderer: structlog.types.Processor = structlog.dev.ConsoleRenderer()
+    else:
+        renderer = structlog.processors.JSONRenderer()
+
+    structlog.configure(
+        processors=[*shared_processors, renderer],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, settings.log_level.upper(), logging.INFO)
+        ),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    _CONFIGURED = True
+
+
+def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
+    configure_logging()
+    return structlog.get_logger(name)
+
+===== ./Portfolio_via_Streamlit/presentation/home.py =====
+"""Pagina inicial: catalogo dos mini-apps, com contexto antes de navegar."""
+
+from __future__ import annotations
+
+import streamlit as st
+
+from Portfolio_via_Streamlit.observability import safe_page
+
+_APPS = [
+    ("🧑‍💻", "My Portfolio", "Quem sou eu e os projetos em destaque."),
+    (
+        "💰",
+        "Retirement App",
+        "Simulador de aposentadoria com aportes, eventos e projecao mes a mes.",
+    ),
+    ("🛒", "Price Comparator App", "Compara o preco por unidade entre dois produtos."),
+    ("💬", "Puxa Conversa", "Cartas com perguntas para puxar assunto, estilo Tinder."),
+]
+
+
+@safe_page("home")
+def home_app() -> None:
+    st.title("👋 Bem-vindo ao meu Showcase")
+    st.write(
+        "Esse e um portfolio pessoal com alguns mini-apps de dados. "
+        "Use o menu a esquerda para navegar entre eles."
+    )
+    st.markdown("---")
+
+    for icon, nome, descricao in _APPS:
+        col_icon, col_text = st.columns([1, 8])
+        with col_icon:
+            st.markdown(f"### {icon}")
+        with col_text:
+            st.markdown(f"**{nome}**")
+            st.caption(descricao)
+        st.markdown("")
+
+===== ./Portfolio_via_Streamlit/presentation/__init__.py =====
+
+===== ./Portfolio_via_Streamlit/presentation/puxa_conversa.py =====
+"""Cartas de perguntas para puxar assunto.
+
+- Sem ``st.set_page_config`` (centralizado em ``app.py``).
+- Chaves de ``session_state`` prefixadas com ``puxa_conversa_``.
+- Leitura de arquivos cacheada com ``st.cache_data``.
+"""
+
+from __future__ import annotations
+
+import random
+from pathlib import Path
+
+import streamlit as st
+
+from Portfolio_via_Streamlit.config import QUESTIONS_DIR, WEB_ELEMENTS_DIR
+from Portfolio_via_Streamlit.observability import safe_page, track_event
+
+_PREFIX = "puxa_conversa_"
+
+
+@st.cache_data(show_spinner=False)
+def _carregar_perguntas() -> dict[str, list[str]]:
+    perguntas: dict[str, list[str]] = {"profundas": [], "normais": []}
+    for categoria, filename in (
+        ("profundas", "perguntas_profundas.txt"),
+        ("normais", "perguntas_normais.txt"),
+    ):
+        path = Path(QUESTIONS_DIR) / filename
+        if path.exists():
+            perguntas[categoria] = [
+                linha.strip()
+                for linha in path.read_text(encoding="utf-8").splitlines()
+                if linha.strip()
+            ]
+    return perguntas
+
+
+@st.cache_data(show_spinner=False)
+def _carregar_css() -> str | None:
+    path = Path(WEB_ELEMENTS_DIR) / "style.css"
+    return path.read_text(encoding="utf-8") if path.exists() else None
+
+
+@st.cache_data(show_spinner=False)
+def _carregar_template_card() -> str | None:
+    path = Path(WEB_ELEMENTS_DIR) / "card.html"
+    return path.read_text(encoding="utf-8") if path.exists() else None
+
+
+def _embaralhar(perguntas: list[str]) -> list[str]:
+    copia = perguntas.copy()
+    random.shuffle(copia)
+    return copia
+
+
+def _renderizar_card(pergunta: str, indice: int, total: int) -> None:
+    template = _carregar_template_card()
+    if template is None:
+        st.write("Card HTML nao encontrado!")
+        return
+    html = (
+        template.replace("{{PERGUNTA}}", pergunta)
+        .replace("{{INDICE}}", str(indice))
+        .replace("{{TOTAL}}", str(total))
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
+@safe_page("puxa_conversa")
+def puxa_conversa_app() -> None:
+    col1, _ = st.columns([1, 2])
+    with col1:
+        st.markdown(
+            """
+            <div style='padding: 1rem 0;'>
+                <h1 style='font-size: 2rem; margin-bottom: 0.5rem;
+                    background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+                    -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>
+                💬 Puxa-Conversa
+                </h1>
+                <p style='color: #666; font-size: 0.9rem;'>Navegue pelas perguntas!</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    estado_padrao = {
+        f"{_PREFIX}current_index": 0,
+        f"{_PREFIX}categoria": "normais",
+        f"{_PREFIX}perguntas_shuffled": {},
+    }
+    for chave, valor in estado_padrao.items():
+        st.session_state.setdefault(chave, valor)
+
+    css = _carregar_css()
+    if css:
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+    perguntas = _carregar_perguntas()
+    if not st.session_state[f"{_PREFIX}perguntas_shuffled"]:
+        st.session_state[f"{_PREFIX}perguntas_shuffled"] = {
+            cat: _embaralhar(lista) for cat, lista in perguntas.items()
+        }
+
+    categoria = st.radio(
+        "Escolha a categoria:",
+        ["profundas", "normais"],
+        index=0 if st.session_state[f"{_PREFIX}categoria"] == "profundas" else 1,
+    )
+    if categoria != st.session_state[f"{_PREFIX}categoria"]:
+        st.session_state[f"{_PREFIX}categoria"] = categoria
+        st.session_state[f"{_PREFIX}current_index"] = 0
+
+    perguntas_atual = st.session_state[f"{_PREFIX}perguntas_shuffled"][categoria]
+    total = len(perguntas_atual)
+
+    idx = st.session_state[f"{_PREFIX}current_index"]
+    idx = max(0, min(idx, total - 1)) if total else 0
+    st.session_state[f"{_PREFIX}current_index"] = idx
+
+    if total > 0:
+        _renderizar_card(perguntas_atual[idx], idx + 1, total)
+    else:
+        st.write("Nenhuma pergunta encontrada nesta categoria.")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("⬅️ Anterior") and idx > 0:
+            st.session_state[f"{_PREFIX}current_index"] -= 1
+    with col2:
+        if st.button("🔄 Reset"):
+            st.session_state[f"{_PREFIX}current_index"] = 0
+            st.session_state[f"{_PREFIX}perguntas_shuffled"][categoria] = _embaralhar(
+                perguntas[categoria]
+            )
+            track_event("puxa_conversa_reset", categoria=categoria)
+    with col3:
+        if st.button("➡️ Proxima") and idx < total - 1:
+            st.session_state[f"{_PREFIX}current_index"] += 1
+
+===== ./Portfolio_via_Streamlit/presentation/retirement.py =====
+"""Simulador de aposentadoria.
+
+- Filtros lazy: so recalcula ao clicar em "Aplicar" (via st.form).
+- Primeira carga ja mostra a simulacao com valores padrao.
+- Formatacao monetaria via babel.
+- Grafico interativo em Plotly.
+- session_state namespaced com prefixo "retirement_".
+"""
+
+from __future__ import annotations
+
+from datetime import date
+
+import plotly.graph_objects as go
+import streamlit as st
+from babel.numbers import format_currency
+
+from Portfolio_via_Streamlit.observability import safe_page, track_event
+from Portfolio_via_Streamlit.services.retirement_service import (
+    resumo_da_simulacao,
+    simular_aposentadoria,
+)
+
+_PREFIX = "retirement_"
+
+DEFAULTS = {
+    "idade_atual": 18,
+    "idade_aposentadoria": 65,
+    "expectativa_vida": 85,
+    "renda_mensal": 1621,
+    "retorno_real_anual": 4.0,
+    "inflacao_anual": 5.0,
+    "aporte_mensal": 324,
+    "patrimonio_inicial": 0,
+}
+
+
+def _moeda(valor: float) -> str:
+    return format_currency(valor, "BRL", locale="pt_BR")
+
+
+def _params_iniciais() -> dict[str, object]:
+    return {
+        "idade_atual": DEFAULTS["idade_atual"],
+        "idade_aposentadoria": DEFAULTS["idade_aposentadoria"],
+        "expectativa_vida": DEFAULTS["expectativa_vida"],
+        "valor_desejado_por_ano": DEFAULTS["renda_mensal"] * 12,
+        "retorno_real_anual": DEFAULTS["retorno_real_anual"] / 100,
+        "inflacao_anual": DEFAULTS["inflacao_anual"] / 100,
+        "aporte_mensal": DEFAULTS["aporte_mensal"],
+        "patrimonio": DEFAULTS["patrimonio_inicial"],
+    }
+
+
+def _render_form() -> tuple[bool, dict[str, object], list[dict[str, object]]]:
+    qtd_eventos = st.sidebar.number_input(
+        "Quantidade de eventos extraordinarios",
+        min_value=0,
+        max_value=20,
+        value=0,
+        step=1,
+        key=f"{_PREFIX}qtd_eventos",
+    )
+
+    with st.sidebar.form(f"{_PREFIX}form"):
+        idade_atual = st.number_input(
+            "Idade atual", min_value=0, max_value=120, value=DEFAULTS["idade_atual"], step=1
+        )
+        idade_aposentadoria = st.number_input(
+            "Idade para aposentadoria",
+            min_value=idade_atual,
+            max_value=120,
+            value=DEFAULTS["idade_aposentadoria"],
+            step=1,
+        )
+        expectativa_vida = st.number_input(
+            "Expectativa de vida",
+            min_value=idade_aposentadoria,
+            max_value=150,
+            value=DEFAULTS["expectativa_vida"],
+            step=1,
+        )
+        renda_mensal = st.number_input(
+            "Renda desejada na aposentadoria (por mes)",
+            min_value=0,
+            value=DEFAULTS["renda_mensal"],
+            step=100,
+        )
+        retorno_real_anual = (
+            st.number_input(
+                "Retorno real esperado (% ao ano)",
+                min_value=0.0,
+                max_value=100.0,
+                value=DEFAULTS["retorno_real_anual"],
+                step=0.1,
+            )
+            / 100
+        )
+        inflacao_anual = (
+            st.number_input(
+                "Inflacao estimada (% ao ano)",
+                min_value=0.0,
+                max_value=100.0,
+                value=DEFAULTS["inflacao_anual"],
+                step=0.1,
+            )
+            / 100
+        )
+        aporte_mensal = st.number_input(
+            "Aporte mensal ate aposentadoria",
+            min_value=0,
+            value=DEFAULTS["aporte_mensal"],
+            step=100,
+        )
+        patrimonio_inicial = st.number_input(
+            "Patrimonio inicial", min_value=0, value=DEFAULTS["patrimonio_inicial"], step=500
+        )
+
+        st.markdown("---")
+        st.subheader("📅 Eventos extraordinarios")
+        eventos: list[dict[str, object]] = []
+        for i in range(qtd_eventos):
+            st.markdown(f"**Evento {i + 1}**")
+            data_evento = st.date_input(
+                f"Data do evento {i + 1}", value=date(2035, 12, 1), key=f"{_PREFIX}data_{i}"
+            )
+            valor = st.number_input(
+                f"Valor do evento {i + 1}", value=0.0, step=100.0, key=f"{_PREFIX}valor_{i}"
+            )
+            positivo = st.checkbox(
+                "E um credito? (Receita)", value=True, key=f"{_PREFIX}positivo_{i}"
+            )
+            eventos.append(
+                {
+                    "data": data_evento.strftime("%Y-%m-%d"),
+                    "valor": valor if positivo else -valor,
+                }
+            )
+
+        submitted = st.form_submit_button("✅ Aplicar")
+
+    params = {
+        "idade_atual": idade_atual,
+        "idade_aposentadoria": idade_aposentadoria,
+        "expectativa_vida": expectativa_vida,
+        "valor_desejado_por_ano": renda_mensal * 12,
+        "retorno_real_anual": retorno_real_anual,
+        "inflacao_anual": inflacao_anual,
+        "aporte_mensal": aporte_mensal,
+        "patrimonio": patrimonio_inicial,
+    }
+    return submitted, params, eventos
+
+
+def _plot(df) -> go.Figure:  # noqa: ANN001 — df: pd.DataFrame
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df["data"],
+            y=df["patrimonio"],
+            mode="lines",
+            name="Patrimonio (R$)",
+            line={"color": "#16a34a", "width": 2},
+            hovertemplate="%{x|%b/%Y}<br>R$ %{y:,.0f}<extra></extra>",
+        )
+    )
+    inicio_aposentadoria = df[df["fase"] == "Aposentadoria"]["data"].iloc[0]
+    fig.add_vline(
+        x=inicio_aposentadoria.timestamp() * 1000,
+        line_dash="dash",
+        line_color="#dc2626",
+        annotation_text="Inicio da aposentadoria",
+        annotation_position="top",
+    )
+    fig.update_layout(
+        yaxis_tickprefix="R$ ",
+        yaxis_tickformat=",.0f",
+        xaxis_title="Ano",
+        yaxis_title="Patrimonio acumulado",
+        hovermode="x unified",
+        margin={"l": 40, "r": 20, "t": 30, "b": 40},
+        height=450,
+    )
+    return fig
+
+
+@safe_page("retirement")
+def retirement_app() -> None:
+    st.title("💰 Simulador de Aposentadoria")
+    st.sidebar.header("🧠 Dados do Usuario")
+
+    if f"{_PREFIX}params" not in st.session_state:
+        st.session_state[f"{_PREFIX}params"] = _params_iniciais()
+        st.session_state[f"{_PREFIX}eventos"] = []
+
+    submitted, params, eventos = _render_form()
+    if submitted:
+        st.session_state[f"{_PREFIX}params"] = params
+        st.session_state[f"{_PREFIX}eventos"] = eventos
+        track_event("retirement_simulation_applied", **params)
+
+    df = simular_aposentadoria(
+        st.session_state[f"{_PREFIX}params"], st.session_state[f"{_PREFIX}eventos"]
+    )
+    resumo = resumo_da_simulacao(df)
+
+    st.subheader("📊 Evolucao do Patrimonio")
+    st.plotly_chart(_plot(df), use_container_width=True)
+
+    st.subheader("📢 Destaques")
+    st.caption(
+        f"Voce podera se aposentar em {resumo.ano_aposentadoria}, com um patrimonio "
+        f"estimado de {_moeda(resumo.patrimonio_no_inicio_da_aposentadoria)}."
+    )
+    st.caption(f"Patrimonio maximo: {_moeda(resumo.patrimonio_maximo)}")
+    st.caption(
+        "Esse valor permitira uma renda mensal inicial de aproximadamente: "
+        f"{_moeda(resumo.renda_mensal_inicial)}"
+    )
+    if resumo.ano_de_esgotamento is None:
+        st.caption("Pela projecao, a cobertura financeira nao se esgotaria.")
+    else:
+        st.caption(
+            f"Pela projecao, a cobertura financeira se esgotaria em {resumo.ano_de_esgotamento}."
+        )
+
+    st.subheader("📈 Evolucao dos dados")
+    df_formatado = df.copy()
+    df_formatado["data"] = df_formatado["data"].dt.strftime("%d/%m/%Y")
+    for col in ("patrimonio", "aporte", "retirada"):
+        df_formatado[col] = df_formatado[col].map(_moeda)
+    st.dataframe(
+        df_formatado[["data", "patrimonio", "fase", "aporte", "retirada"]].set_index("data"),
+        use_container_width=True,
+    )
+
+===== ./Portfolio_via_Streamlit/presentation/portfolio.py =====
+"""Pagina de portfolio: apresentacao e projetos em destaque."""
+
+from __future__ import annotations
+
+import streamlit as st
+from PIL import Image
+from streamlit_lottie import st_lottie
+
+from Portfolio_via_Streamlit.config import IMAGES_DIR
+from Portfolio_via_Streamlit.observability import safe_page, track_event
+from Portfolio_via_Streamlit.services.assets import load_lottie
+from Portfolio_via_Streamlit.services.notifications import notify_once_per_session
+
+
+def _notify_once_per_session() -> None:
+    notify_once_per_session()
+    
+@safe_page("portfolio")
+def portfolio_app() -> None:
+    _notify_once_per_session()
+    track_event("portfolio_page_viewed")
+
+    img_financial = Image.open(IMAGES_DIR / "cash-management-dashboard.png")
+    img_pmo = Image.open(IMAGES_DIR / "pmo.png")
+    lottie_what_do_i_do = load_lottie("what_do_i_do.json")
+    lottie_server = load_lottie("server.json")
+
+    with st.container():
+        st.subheader("Discover my Portfolio: P. Frey's Analytics Showcase")
+        st.write(
+            "Explore interactive data products, Streamlit web apps, and automated analytics solutions."
+        )
+
+    with st.container():
+        st.write("---")
+        left_col, right_col = st.columns(2)
+        with left_col:
+            st.header("What do I do")
+            st.write("##")
+            st.write(
+                """
+                Senior BI Developer & Analytics Engineer focused on data modeling, automation, and scalable platforms.
+                Here you can find interactive web apps and data products built with Python (Streamlit)
+                designed for scenario simulation, decision automation, and operational efficiency.
+                """
+            )
+            st.write("[View my GitHub profile](https://github.com/PedroFrey)")
+        with right_col:
+            if lottie_what_do_i_do:
+                st_lottie(lottie_what_do_i_do, key="lottie_what_do_i_do")
+            st.write(":computer:")
+
+    with st.container():
+        st.write("---")
+        image_col, text_col = st.columns((1, 2))
+        with image_col:
+            st.image(img_financial)
+        with text_col:
+            st.subheader("Data Visualization for Financial Analysis")
+            st.write(
+                "Financial Insights Dashboard: Comprehensive analysis of Cash Management and Corporate Metrics."
+            )
+            st.markdown("[Explore Financial Dashboard](https://www.google.com)")
+
+    with st.container():
+        st.write("---")
+        image_col, text_col = st.columns((1, 2))
+        with image_col:
+            st.image(img_pmo)
+        with text_col:
+            st.subheader("Project Management Dashboard")
+            st.write("Real-time insights for Project, Program, and Portfolio performance.")
+            st.markdown(
+                "[Explore PMO Dashboard]"
+                "(https://app.powerbi.com/view?r=eyJrIjoiYWMyZTIxOTItNzk2Ni00N2Q3LWE4YmUtNGViMWE0NjE3NzFlIiwidCI6ImUyZjc3ZDAwLTAxNjMtNGNmNi05MmIwLTQ4NGJhZmY5ZGY3ZCJ9)"
+            )
+
+    with st.container():
+        st.write("---")
+        if lottie_server:
+            st_lottie(lottie_server, height=300, key="lottie_server")
+        st.write("##")
+        st.write(
+            """
+            To get in touch or discuss potential projects, feel free to reach out.
+            I am open to collaborations and opportunities in Business Intelligence, 
+            Analytics Engineering, and Data Automation.
+            """
+        )
+
+===== ./Portfolio_via_Streamlit/presentation/price_comparator.py =====
+"""Comparador de preco por unidade entre dois produtos.
+
+Removido: chamada a ``st.set_page_config`` dentro da funcao — isso so pode
+ser chamado uma vez por app, e ja esta centralizado em ``app.py``.
+"""
+
+from __future__ import annotations
+
+import streamlit as st
+from babel.numbers import format_currency
+
+from Portfolio_via_Streamlit.observability import safe_page, track_event
+
+
+def _calculate_unit_price(price: float, quantity: float) -> float:
+    return price / quantity if quantity != 0 else float("inf")
+
+
+def _moeda(valor: float) -> str:
+    return format_currency(valor, "BRL", locale="pt_BR")
+
+
+@safe_page("price_comparator")
+def price_comparator() -> None:
+    st.title("🛒 Supermarket Price Comparator")
+    st.subheader("Quickly check which product is cheaper per unit!")
+    st.markdown("---")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.header("🔍 Product 1")
+        price1 = st.number_input("Price (R$)", min_value=0.0, value=10.0, step=0.01, key="price1")
+        quantity1 = st.number_input(
+            "Quantity (kg, L, units...)", min_value=0.01, value=1.0, step=0.1, key="quantity1"
+        )
+    with col2:
+        st.header("🔍 Product 2")
+        price2 = st.number_input("Price (R$)", min_value=0.0, value=8.0, step=0.01, key="price2")
+        quantity2 = st.number_input(
+            "Quantity (kg, L, units...)", min_value=0.01, value=0.8, step=0.1, key="quantity2"
+        )
+
+    st.markdown("---")
+
+    if st.button("🚀 Compare Now"):
+        unit_price1 = _calculate_unit_price(price1, quantity1)
+        unit_price2 = _calculate_unit_price(price2, quantity2)
+        track_event("price_comparator_used")
+
+        st.subheader("💡 Result")
+        st.write(f"🔸 Product 1 unit price: **{_moeda(unit_price1)}**")
+        st.write(f"🔸 Product 2 unit price: **{_moeda(unit_price2)}**")
+
+        if unit_price1 < unit_price2:
+            st.success("✅ **Product 1 is more cost-effective!**")
+        elif unit_price2 < unit_price1:
+            st.success("✅ **Product 2 is more cost-effective!**")
+        else:
+            st.info("⚖️ **Both products have the same unit price.**")
+
+    st.markdown("---")
+    st.caption("Tip: Quantity can be in kg, liters, units, packs, etc.")
+
+===== ./Portfolio_via_Streamlit/assets/WebDevElements/style.css =====
+.tinder-container {
+    display:flex; justify-content:center; align-items:center; padding:2rem 0; min-height:400px;
+}
+.card-stack {position:relative; width:350px; height:400px; perspective:1000px;}
+.card {
+    position:absolute; width:100%; height:100%; background:linear-gradient(135deg, #ffffff, #f8fafc);
+    border-radius:24px; box-shadow:0 20px 40px rgba(0,0,0,0.1),0 6px 12px rgba(0,0,0,0.1);
+    display:flex; align-items:center; justify-content:center; padding:2rem; text-align:center;
+    transition: all 0.3s ease; border:1px solid #e2e8f0;
+}
+.card-main {z-index:2; transform:translateZ(0);}
+.card-main:hover {transform: translateY(-10px) scale(1.02); box-shadow:0 25px 50px rgba(0,0,0,0.15),0 10px 20px rgba(0,0,0,0.1);}
+.card-text {font-size:1.4rem; font-weight:600; color:#1e293b; line-height:1.6; margin-bottom:1rem;}
+.card-counter {font-size:0.9rem; color:#64748b; font-weight:500;}
+.controls-container {display:flex; justify-content:center; gap:1rem; margin-top:2rem; flex-wrap:wrap;}
+.tinder-btn {width:60px; height:60px; border-radius:50%; border:none; color:white; font-size:1.5rem;
+            cursor:pointer; transition:all 0.2s ease; box-shadow:0 4px 12px rgba(0,0,0,0.15);
+            display:flex; align-items:center; justify-content:center;}
+.btn-like {background:linear-gradient(135deg, #10b981, #059669);}
+.btn-dislike {background:linear-gradient(135deg, #ef4444, #dc2626);}
+.btn-back {background:linear-gradient(135deg, #6b7280, #4b5563); width:50px; height:50px;}
+.btn-reset {background:linear-gradient(135deg, #3b82f6, #2563eb); width:50px; height:50px;}
+===== ./Portfolio_via_Streamlit/assets/WebDevElements/card.html =====
+<div class="tinder-container">
+    <div class="card-stack">
+        <div class="card card-main">
+            <div>
+                <div class="card-text">{{PERGUNTA}}</div>
+                <div class="card-counter">{{INDICE}} de {{TOTAL}}</div>
+            </div>
+        </div>
+    </div>
+</div>
+===== ./Portfolio_via_Streamlit/services/__init__.py =====
+
+===== ./Portfolio_via_Streamlit/services/notifications_service.py =====
+"""Notificacao via WhatsApp (CallMeBot), com retry e logging estruturado.
+
+Antes: chamada disparada como efeito colateral no import do modulo da pagina.
+Agora e uma funcao pura de I/O, chamada explicitamente pela pagina com um
+guard de ``st.session_state`` para disparar no maximo uma vez por sessao.
+"""
+
+from __future__ import annotations
+
+from urllib.parse import quote
+
+import requests
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from Portfolio_via_Streamlit.config import settings
+from Portfolio_via_Streamlit.logging_config import get_logger
+
+log = get_logger(__name__)
+
+_CALLMEBOT_URL = "https://api.callmebot.com/whatsapp.php"
+
+
+@retry(
+    reraise=False,
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
+    retry=retry_if_exception_type(requests.RequestException),
+)
+def _send(url: str) -> requests.Response:
+    response = requests.get(url, timeout=5)
+    response.raise_for_status()
+    return response
+
+
+def send_whatsapp_message(message: str) -> bool:
+    """Envia mensagem via CallMeBot WhatsApp. Retorna True se enviou com sucesso.
+
+    Nunca lanca excecao: notificacao e best-effort e nao pode derrubar a
+    pagina. Falhas sao logadas de forma estruturada.
+    """
+    if not settings.notifications_enabled:
+        log.info("whatsapp_notification_skipped", reason="not_configured")
+        return False
+
+    url = (
+        f"{_CALLMEBOT_URL}?phone={settings.phone_number}"
+        f"&text={quote(message)}&apikey={settings.call_me_bot_api_key}"
+    )
+    try:
+        _send(url)
+    except requests.RequestException as exc:
+        log.error("whatsapp_notification_failed", error=str(exc))
+        return False
+    else:
+        log.info("whatsapp_notification_sent")
+        return True
+
+===== ./Portfolio_via_Streamlit/services/lotties_service.py =====
+"""Carregamento de animacoes Lottie locais."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import streamlit as st
+
+from Portfolio_via_Streamlit.config import LOTTIES_DIR
+from Portfolio_via_Streamlit.logging_config import get_logger
+
+log = get_logger(__name__)
+
+
+@st.cache_data(show_spinner=False)
+def load_lottie(filename: str) -> dict[str, Any] | None:
+    """Carrega um Lottie JSON local do diretorio LOTTIES_DIR."""
+    path = Path(LOTTIES_DIR) / filename
+    if not path.exists():
+        log.warning("lottie_not_found", filename=filename)
+        return None
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+===== ./Portfolio_via_Streamlit/services/retirement_service.py =====
+"""Camada de servico do simulador de aposentadoria.
+
+Fina de proposito: valida a entrada crua (dict vindo dos widgets Streamlit)
+contra os modelos Pydantic em ``domain.retirement`` e delega o calculo.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from typing import Any
+
+import pandas as pd
+import streamlit as st
+
+from Portfolio_via_Streamlit.domain.retirement import (
+    RetirementEvent,
+    RetirementParams,
+    RetirementSimulationResult,
+    simulate_retirement,
+    summarize,
+)
+from Portfolio_via_Streamlit.logging_config import get_logger
+
+log = get_logger(__name__)
+
+
+@st.cache_data(show_spinner=False, ttl=600)
+def _cached_simulate(params_json: str, events_json: str) -> pd.DataFrame:
+    """Cache keyed pelos parametros serializados — evita recalcular a mesma
+    simulacao a cada rerun do Streamlit quando nada relevante mudou.
+    """
+    params = RetirementParams.model_validate_json(params_json)
+    events = [RetirementEvent.model_validate(e) for e in json.loads(events_json)]
+    start = time.perf_counter()
+    df = simulate_retirement(params, events)
+    log.info(
+        "retirement_simulation_executed",
+        duracao_ms=round((time.perf_counter() - start) * 1000, 2),
+        total_meses=len(df),
+    )
+    return df
+
+
+def simular_aposentadoria(
+    params: dict[str, Any],
+    eventos_extraordinarios: list[dict[str, Any]] | None = None,
+) -> pd.DataFrame:
+    """API publica compativel com o codigo legado (recebe dicts)."""
+    validated_params = RetirementParams.model_validate(params)
+    validated_events = [RetirementEvent.model_validate(e) for e in (eventos_extraordinarios or [])]
+    return _cached_simulate(
+        validated_params.model_dump_json(),
+        json.dumps([e.model_dump(mode="json") for e in validated_events]),
+    )
+
+
+def resumo_da_simulacao(df: pd.DataFrame) -> RetirementSimulationResult:
+    """Wrapper fino para `domain.retirement.summarize`."""
+    return summarize(df)
+
+===== ./Portfolio_via_Streamlit/tests/__init__.py =====
+
+===== ./Portfolio_via_Streamlit/tests/page_scripts/__init__.py =====
+
+===== ./Portfolio_via_Streamlit/tests/page_scripts/run_price_comparator.py =====
+from Portfolio_via_Streamlit.presentation.price_comparator import price_comparator
+
+price_comparator()
+
+===== ./Portfolio_via_Streamlit/tests/page_scripts/run_portfolio.py =====
+from Portfolio_via_Streamlit.presentation.portfolio import portfolio_app
+
+portfolio_app()
+
+===== ./Portfolio_via_Streamlit/tests/page_scripts/run_puxa_conversa.py =====
+from Portfolio_via_Streamlit.presentation.puxa_conversa import puxa_conversa_app
+
+puxa_conversa_app()
+
+===== ./Portfolio_via_Streamlit/tests/page_scripts/run_retirement.py =====
+from Portfolio_via_Streamlit.presentation.retirement import retirement_app
+
+retirement_app()
+
+===== ./Portfolio_via_Streamlit/tests/page_scripts/run_home.py =====
+from Portfolio_via_Streamlit.presentation.home import home_app
+
+home_app()
+
+===== ./Portfolio_via_Streamlit/tests/test_retirement_domain.py =====
+"""Testes da logica pura de simulacao de aposentadoria."""
+
+from __future__ import annotations
+
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+from pydantic import ValidationError
+
+from Portfolio_via_Streamlit.domain.retirement import (
+    RetirementEvent,
+    RetirementParams,
+    simulate_retirement,
+    summarize,
+)
+
+
+def test_idades_fora_de_ordem_sao_rejeitadas() -> None:
+    with pytest.raises(ValidationError):
+        RetirementParams(
+            idade_atual=70,
+            idade_aposentadoria=65,
+            expectativa_vida=85,
+            valor_desejado_por_ano=12000,
+            retorno_real_anual=0.04,
+            inflacao_anual=0.05,
+        )
+
+
+def test_retorno_negativo_e_rejeitado() -> None:
+    with pytest.raises(ValidationError):
+        RetirementParams(
+            idade_atual=30,
+            idade_aposentadoria=65,
+            expectativa_vida=85,
+            valor_desejado_por_ano=12000,
+            retorno_real_anual=-0.01,
+            inflacao_anual=0.05,
+        )
+
+
+@pytest.fixture
+def params_exemplo() -> RetirementParams:
+    return RetirementParams(
+        idade_atual=30,
+        idade_aposentadoria=65,
+        expectativa_vida=85,
+        valor_desejado_por_ano=12000,
+        retorno_real_anual=0.04,
+        inflacao_anual=0.05,
+        aporte_mensal=500,
+        patrimonio=0,
+    )
+
+
+def test_simulacao_gera_uma_linha_por_mes(params_exemplo: RetirementParams) -> None:
+    df = simulate_retirement(params_exemplo)
+    meses_totais = (65 - 30 + 85 - 65) * 12
+    assert len(df) == meses_totais
+
+
+def test_fase_crescimento_antes_da_aposentadoria(params_exemplo: RetirementParams) -> None:
+    df = simulate_retirement(params_exemplo)
+    meses_ate_aposentar = (65 - 30) * 12
+    assert (df.iloc[:meses_ate_aposentar]["fase"] == "Crescimento").all()
+    assert (df.iloc[meses_ate_aposentar:]["fase"] == "Aposentadoria").all()
+
+
+def test_patrimonio_cresce_durante_a_fase_de_acumulacao(
+    params_exemplo: RetirementParams,
+) -> None:
+    df = simulate_retirement(params_exemplo)
+    crescimento = df[df["fase"] == "Crescimento"]["patrimonio"]
+    assert crescimento.is_monotonic_increasing
+
+
+def test_evento_extraordinario_positivo_aumenta_patrimonio_no_mes(
+    params_exemplo: RetirementParams,
+) -> None:
+    df_sem_evento = simulate_retirement(params_exemplo)
+    evento = RetirementEvent(data=df_sem_evento.iloc[5]["data"].date(), valor=10_000)
+    df_com_evento = simulate_retirement(params_exemplo, events=[evento])
+    assert df_com_evento.iloc[5]["patrimonio"] > df_sem_evento.iloc[5]["patrimonio"]
+
+
+def test_summarize_identifica_ano_de_aposentadoria(params_exemplo: RetirementParams) -> None:
+    df = simulate_retirement(params_exemplo)
+    resumo = summarize(df)
+    assert resumo.patrimonio_maximo >= 0
+    assert resumo.ano_aposentadoria.isdigit()
+
+
+@given(
+    idade_atual=st.integers(min_value=18, max_value=50),
+    anos_ate_aposentar=st.integers(min_value=1, max_value=40),
+    anos_de_aposentadoria=st.integers(min_value=1, max_value=30),
+    retorno_real_anual=st.floats(min_value=0.0, max_value=0.15, allow_nan=False),
+    inflacao_anual=st.floats(min_value=0.0, max_value=0.15, allow_nan=False),
+    aporte_mensal=st.floats(min_value=0.0, max_value=5000.0, allow_nan=False),
+    valor_desejado_por_ano=st.floats(min_value=0.0, max_value=200_000.0, allow_nan=False),
+)
+@settings(max_examples=50, deadline=None)
+def test_patrimonio_nunca_fica_negativo(
+    idade_atual: int,
+    anos_ate_aposentar: int,
+    anos_de_aposentadoria: int,
+    retorno_real_anual: float,
+    inflacao_anual: float,
+    aporte_mensal: float,
+    valor_desejado_por_ano: float,
+) -> None:
+    """Invariante de negocio: patrimonio nunca deve ficar negativo."""
+    params = RetirementParams(
+        idade_atual=idade_atual,
+        idade_aposentadoria=idade_atual + anos_ate_aposentar,
+        expectativa_vida=idade_atual + anos_ate_aposentar + anos_de_aposentadoria,
+        valor_desejado_por_ano=valor_desejado_por_ano,
+        retorno_real_anual=retorno_real_anual,
+        inflacao_anual=inflacao_anual,
+        aporte_mensal=aporte_mensal,
+        patrimonio=0,
+    )
+    df = simulate_retirement(params)
+    assert (df["patrimonio"] >= 0).all()
+
+===== ./Portfolio_via_Streamlit/tests/test_notifications_service.py =====
+"""Testes do servico de notificacao — sem chamadas de rede reais."""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+import requests
+
+from Portfolio_via_Streamlit.services.notifications_service import send_whatsapp_message
+
+
+def test_retorna_false_quando_nao_configurado() -> None:
+    with patch("Portfolio_via_Streamlit.services.notifications_service.settings") as mock_settings:
+        mock_settings.notifications_enabled = False
+        assert send_whatsapp_message("teste") is False
+
+
+def test_retorna_true_em_caso_de_sucesso() -> None:
+    with patch("Portfolio_via_Streamlit.services.notifications_service.settings") as mock_settings:
+        mock_settings.notifications_enabled = True
+        mock_settings.phone_number = "5511999999999"
+        mock_settings.call_me_bot_api_key = "fake-key"
+
+        with patch("Portfolio_via_Streamlit.services.notifications_service._send") as mock_send:
+            mock_send.return_value.status_code = 200
+            assert send_whatsapp_message("teste") is True
+
+
+def test_retorna_false_em_caso_de_falha_de_rede() -> None:
+    with patch("Portfolio_via_Streamlit.services.notifications_service.settings") as mock_settings:
+        mock_settings.notifications_enabled = True
+        mock_settings.phone_number = "5511999999999"
+        mock_settings.call_me_bot_api_key = "fake-key"
+
+        with patch(
+            "Portfolio_via_Streamlit.services.notifications_service._send",
+            side_effect=requests.RequestException("timeout"),
+        ):
+            assert send_whatsapp_message("teste") is False
+
+===== ./Portfolio_via_Streamlit/tests/test_app_smoke.py =====
+"""Smoke tests de UI: cada pagina deve renderizar sem lancar excecao.
+
+Usa ``streamlit.testing.v1.AppTest.from_file``, apontando para pequenos
+scripts em ``page_scripts/`` que so importam e chamam a funcao da pagina.
+``AppTest.from_function`` foi considerado primeiro, mas ele serializa
+apenas o corpo literal da funcao via ``inspect.getsource`` -- nao resolve
+closures nem imports do modulo que a envolve, entao falha com
+``NameError`` para qualquer runner que nao seja 100% autocontido. Scripts
+de arquivo sao a forma suportada e robusta de fazer isso.
+
+Nota: como cada pagina e protegida por ``@safe_page``, uma excecao interna
+vira um `st.error` amigavel em vez de propagar -- por isso aqui verificamos
+tanto ``at.exception`` (erros nao capturados, ex: de import) quanto a
+ausencia do texto de erro do boundary nos elementos renderizados.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from streamlit.testing.v1 import AppTest
+
+_SCRIPTS_DIR = Path(__file__).parent / "page_scripts"
+
+PAGE_SCRIPTS = [
+    "run_home.py",
+    "run_portfolio.py",
+    "run_price_comparator.py",
+    "run_puxa_conversa.py",
+    "run_retirement.py",
+]
+
+
+@pytest.mark.parametrize("script_name", PAGE_SCRIPTS)
+def test_pagina_renderiza_sem_excecao(script_name: str) -> None:
+    script_path = _SCRIPTS_DIR / script_name
+    at = AppTest.from_file(str(script_path), default_timeout=15)
+    at.run()
+
+    assert not at.exception, f"{script_name} lancou excecao: {at.exception}"
+    erro_boundary = [e for e in at.error if "Algo deu errado" in e.value]
+    assert not erro_boundary, f"{script_name} caiu no error boundary: {erro_boundary}"
+
+===== ./Portfolio_via_Streamlit/domain/__init__.py =====
+
+===== ./Portfolio_via_Streamlit/domain/retirement.py =====
+"""Logica de dominio do simulador de aposentadoria.
+
+Modulo puro: sem Streamlit, sem I/O, sem efeitos colaterais.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+
+import pandas as pd
+from pydantic import BaseModel, Field, model_validator
+
+
+class RetirementEvent(BaseModel):
+    """Um evento extraordinario (aporte ou retirada pontual) numa data especifica."""
+
+    data: date
+    valor: float = Field(description="Positivo = credito/receita; negativo = debito/despesa")
+
+
+class RetirementParams(BaseModel):
+    """Parametros de entrada da simulacao, ja validados."""
+
+    idade_atual: int = Field(ge=0, le=120)
+    idade_aposentadoria: int = Field(ge=0, le=120)
+    expectativa_vida: int = Field(ge=0, le=150)
+    valor_desejado_por_ano: float = Field(ge=0)
+    retorno_real_anual: float = Field(ge=0, le=1, description="Fracao, ex: 0.04 = 4% a.a.")
+    inflacao_anual: float = Field(ge=0, le=1)
+    aporte_mensal: float | None = Field(default=None, ge=0)
+    patrimonio: float = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _valida_ordem_das_idades(self) -> RetirementParams:
+        if not self.idade_atual <= self.idade_aposentadoria <= self.expectativa_vida:
+            raise ValueError(
+                "As idades devem seguir: idade_atual <= idade_aposentadoria <= expectativa_vida"
+            )
+        return self
+
+
+class RetirementSimulationResult(BaseModel):
+    """Metadados de destaque da simulacao, derivados do DataFrame mes-a-mes."""
+
+    ano_aposentadoria: str
+    patrimonio_no_inicio_da_aposentadoria: float
+    patrimonio_maximo: float
+    renda_mensal_inicial: float
+    ano_de_esgotamento: str | None
+
+    model_config = {"frozen": True}
+
+
+def simulate_retirement(
+    params: RetirementParams,
+    events: list[RetirementEvent] | None = None,
+    start: date | None = None,
+) -> pd.DataFrame:
+    """Simula a evolucao patrimonial mes a mes ate o fim da expectativa de vida."""
+    events = events or []
+    start = start or date.today()
+
+    retorno_nominal_anual = (1 + params.retorno_real_anual) * (1 + params.inflacao_anual) - 1
+    retorno_mensal = (1 + retorno_nominal_anual) ** (1 / 12) - 1
+    inflacao_mensal = (1 + params.inflacao_anual) ** (1 / 12) - 1
+
+    meses_ate_aposentar = (params.idade_aposentadoria - params.idade_atual) * 12
+    meses_apos_aposentar = (params.expectativa_vida - params.idade_aposentadoria) * 12
+    total_meses = meses_ate_aposentar + meses_apos_aposentar
+
+    retirada_base_mensal = params.valor_desejado_por_ano / 12
+
+    if params.aporte_mensal is not None:
+        aporte = params.aporte_mensal
+    elif meses_ate_aposentar > 0 and retorno_mensal > 0:
+        aporte = (
+            params.valor_desejado_por_ano
+            * retorno_mensal
+            / ((1 + retorno_mensal) ** meses_ate_aposentar - 1)
+        )
+    else:
+        aporte = 0.0
+
+    datas = pd.date_range(start=start, periods=total_meses, freq="MS")
+
+    eventos_por_mes: dict[pd.Timestamp, float] = {}
+    for evento in events:
+        chave = pd.Timestamp(evento.data).replace(day=1)
+        eventos_por_mes[chave] = eventos_por_mes.get(chave, 0.0) + evento.valor
+
+    patrimonio = params.patrimonio
+    linhas: list[dict[str, object]] = []
+
+    for mes in range(total_meses):
+        data_mes = datas[mes]
+        fase = "Crescimento" if mes < meses_ate_aposentar else "Aposentadoria"
+
+        patrimonio *= 1 + retorno_mensal
+
+        if fase == "Crescimento":
+            patrimonio += aporte
+            aporte_mes, retirada_mes = aporte, 0.0
+        else:
+            inflacao_acumulada = (1 + inflacao_mensal) ** mes
+            retirada_corrigida = retirada_base_mensal * inflacao_acumulada
+            patrimonio -= retirada_corrigida
+            aporte_mes, retirada_mes = 0.0, retirada_corrigida
+
+        patrimonio += eventos_por_mes.get(data_mes, 0.0)
+        patrimonio = max(patrimonio, 0.0)
+
+        linhas.append(
+            {
+                "data": data_mes,
+                "ano": data_mes.year,
+                "mes_nome": data_mes.strftime("%b/%Y"),
+                "patrimonio": patrimonio,
+                "aporte": aporte_mes,
+                "retirada": retirada_mes,
+                "fase": fase,
+            }
+        )
+
+    return pd.DataFrame(linhas)
+
+
+def summarize(df: pd.DataFrame) -> RetirementSimulationResult:
+    """Extrai os destaques (highlights) de um DataFrame gerado por ``simulate_retirement``."""
+    aposentadoria = df[df["fase"] == "Aposentadoria"]
+    crescimento = df[df["fase"] == "Crescimento"]
+
+    esgotamento = aposentadoria[aposentadoria["patrimonio"] == 0]["data"].min()
+    ano_esgotamento = None if pd.isna(esgotamento) else esgotamento.strftime("%Y")
+
+    return RetirementSimulationResult(
+        ano_aposentadoria=aposentadoria["data"].min().strftime("%Y"),
+        patrimonio_no_inicio_da_aposentadoria=float(crescimento["patrimonio"].max())
+        if not crescimento.empty
+        else float(df["patrimonio"].iloc[0]),
+        patrimonio_maximo=float(df["patrimonio"].max()),
+        renda_mensal_inicial=float(aposentadoria["retirada"].min()),
+        ano_de_esgotamento=ano_esgotamento,
+    )
+
+===== ./Portfolio_via_Streamlit/observability.py =====
+"""Observabilidade: correlacao de sessao, error boundary por pagina, Sentry.
+
+Streamlit nao expoe endpoints HTTP customizados nem um APM tradicional, entao
+a estrategia aqui e: (1) todo log carrega um session_id de correlacao, (2)
+toda pagina e protegida por um error boundary que loga o stacktrace completo
+mas mostra uma mensagem amigavel ao usuario, (3) excecoes nao tratadas tambem
+vao para o Sentry, se configurado.
+"""
+
+from __future__ import annotations
+
+import functools
+import time
+from collections.abc import Callable
+from typing import ParamSpec, TypeVar
+
+import structlog
+
+from Portfolio_via_Streamlit.config import settings
+from Portfolio_via_Streamlit.logging_config import get_logger
+
+log = get_logger(__name__)
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+_SENTRY_INITIALIZED = False
+
+
+def init_sentry() -> None:
+    """Inicializa o Sentry SDK uma vez por processo, se SENTRY_DSN estiver setado."""
+    global _SENTRY_INITIALIZED
+    if _SENTRY_INITIALIZED or not settings.sentry_enabled:
+        return
+
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        traces_sample_rate=0.2 if settings.environment == "production" else 1.0,
+        send_default_pii=False,
+    )
+    _SENTRY_INITIALIZED = True
+    log.info("sentry_initialized", environment=settings.environment)
+
+
+def get_session_id() -> str:
+    """Retorna um ID estavel de sessao do Streamlit para correlacionar logs."""
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        ctx = get_script_run_ctx()
+        if ctx is not None:
+            return ctx.session_id
+    except Exception:  # nosec B110 — fallback intencional: sem ScriptRunContext (ex: testes)
+        pass
+    return "unknown-session"
+
+
+def bind_session_context(page: str) -> None:
+    """Vincula session_id e pagina atual a todos os logs subsequentes desta run."""
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(session_id=get_session_id(), page=page)
+
+
+def safe_page(page_name: str) -> Callable[[Callable[P, R]], Callable[P, R | None]]:
+    """Decorator de error boundary para funcoes de pagina Streamlit."""
+
+    def decorator(func: Callable[P, R]) -> Callable[P, R | None]:
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R | None:
+            bind_session_context(page_name)
+            start = time.perf_counter()
+            log.info("page_view", page=page_name)
+            try:
+                result = func(*args, **kwargs)
+            except Exception as exc:  # noqa: BLE001 — boundary de topo, e intencional
+                duration_ms = (time.perf_counter() - start) * 1000
+                log.error(
+                    "page_error",
+                    page=page_name,
+                    duration_ms=round(duration_ms, 2),
+                    error=str(exc),
+                    exc_info=True,
+                )
+                if settings.sentry_enabled:
+                    import sentry_sdk
+
+                    sentry_sdk.capture_exception(exc)
+
+                import streamlit as st
+
+                st.error(
+                    "Algo deu errado ao carregar esta pagina. "
+                    "O time ja foi notificado — tente novamente em instantes."
+                )
+                if settings.environment == "development":
+                    st.exception(exc)
+                return None
+            else:
+                duration_ms = (time.perf_counter() - start) * 1000
+                log.info("page_rendered", page=page_name, duration_ms=round(duration_ms, 2))
+                return result
+
+        return wrapper
+
+    return decorator
+
+
+def track_event(event: str, **properties: object) -> None:
+    """Loga um evento de produto e opcionalmente envia ao PostHog."""
+    log.info("product_event", event_name=event, **properties)
+
+    if not settings.analytics_enabled:
+        return
+
+    try:
+        import posthog
+
+        posthog.api_key = settings.posthog_api_key
+        posthog.host = settings.posthog_host
+        posthog.capture(distinct_id=get_session_id(), event=event, properties=properties)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("analytics_event_failed", event=event, error=str(exc))
+
+===== ./Portfolio_via_Streamlit/config.py =====
+"""Configuracao central do app.
+
+Usa pydantic-settings para validar e tipar env vars / secrets, com falha
+explicita e legivel na inicializacao em vez de erros silenciosos espalhados
+pelo codigo (o problema do antigo ``os.environ.get`` + print de warning).
+
+Valores podem vir de (em ordem de precedencia): variaveis de ambiente reais
+(Render), ``.streamlit/secrets.toml`` (lido via st.secrets e injetado como
+env var no boot), ou um ``.env`` local para desenvolvimento.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Literal
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = BASE_DIR / "assets"
+IMAGES_DIR = ASSETS_DIR / "images"
+LOTTIES_DIR = ASSETS_DIR / "lotties"
+QUESTIONS_DIR = ASSETS_DIR / "questions"
+WEB_ELEMENTS_DIR = ASSETS_DIR / "WebDevElements"
+
+
+class Settings(BaseSettings):
+    """Configuracao de ambiente, validada e tipada.
+
+    Nenhum campo aqui e obrigatorio: o app deve degradar graciosamente
+    (ex: sem SENTRY_DSN, so nao reporta erros; sem PHONE_NUMBER, so nao
+    manda notificacao) em vez de quebrar no boot.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    environment: Literal["development", "production"] = "production"
+    log_level: str = "INFO"
+
+    phone_number: str | None = Field(default=None, alias="PHONE_NUMBER")
+    call_me_bot_api_key: str | None = Field(default=None, alias="CALL_ME_BOT_API_KEY")
+
+    sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
+
+    posthog_api_key: str | None = Field(default=None, alias="POSTHOG_API_KEY")
+    posthog_host: str = Field(default="https://us.i.posthog.com", alias="POSTHOG_HOST")
+
+    @property
+    def notifications_enabled(self) -> bool:
+        return bool(self.phone_number and self.call_me_bot_api_key)
+
+    @property
+    def sentry_enabled(self) -> bool:
+        return bool(self.sentry_dsn)
+
+    @property
+    def analytics_enabled(self) -> bool:
+        return bool(self.posthog_api_key)
+
+
+def _load_streamlit_secrets_into_env() -> None:
+    """Espelha st.secrets para os.environ, se um secrets.toml existir."""
+    try:
+        import streamlit as st
+
+        for key, value in st.secrets.items():
+            if isinstance(value, str) and key not in os.environ:
+                os.environ[key] = value
+    except Exception:  # nosec B110 — fallback intencional: sem secrets.toml (ex: testes/CI)
+        pass
+
+
+_load_streamlit_secrets_into_env()
+settings = Settings()
+
+===== ./.streamlit/config.toml =====
+[theme]
+base = "dark"
+primaryColor = "#4ECDC4"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#1C1F26"
+textColor = "#FAFAFA"
+font = "sans serif"
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = false
+
+===== ./.streamlit/secrets.toml.example =====
+# Copie este arquivo para .streamlit/secrets.toml (gitignored) e preencha os valores.
+# Em produção (Render), configure as mesmas chaves como env vars — pydantic-settings
+# le de ambos os lugares.
+
+PHONE_NUMBER = ""
+CALL_ME_BOT_API_KEY = ""
+
+# Sentry (observabilidade / error tracking). Deixe em branco para desabilitar.
+SENTRY_DSN = ""
+
+# "development" | "production" — controla verbosidade de logs e Sentry sample rate
+ENVIRONMENT = "development"
+LOG_LEVEL = "INFO"
+
+# PostHog (analytics de produto). Deixe em branco para desabilitar.
+POSTHOG_API_KEY = ""
+POSTHOG_HOST = "https://us.i.posthog.com"
+
+===== ./.gitignore =====
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtualenv / package managers
+.venv/
+venv/
+.uv/
+uv.lock.bak
+
+# Streamlit secrets (NEVER commit real secrets)
+.streamlit/secrets.toml
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# gcloud / devcontainer local state (accidentally committed before)
+.config/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+===== ./pyproject.toml =====
+[project]
+name = "portfolio-via-streamlit"
+version = "0.2.0"
+description = "Portfólio pessoal em Streamlit — showcase de mini-apps de dados"
+authors = [{ name = "P Frey", email = "pedro.frey@email.com" }]
+requires-python = ">=3.11,<4.0"
+readme = "README.md"
+license = { text = "MIT" }
+
+dependencies = [
+    "streamlit>=1.38,<2.0",
+    "pandas>=2.2,<4.0",
+    "plotly>=5.22,<8.0",
+    "pydantic>=2.7,<3.0",
+    "pydantic-settings>=2.3,<3.0",
+    "structlog>=24.1,<27.0",
+    "sentry-sdk>=2.5,<3.0",
+    "tenacity>=8.3,<10.0",
+    "babel>=2.15,<3.0",
+    "requests>=2.32,<3.0",
+    "streamlit-lottie>=0.0.5,<0.1.0",
+    "Pillow>=11.0,<13.0",
+]
+
+[project.optional-dependencies]
+analytics = ["posthog>=3.5,<8.0"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6,<1.0",
+    "mypy>=1.11,<3.0",
+    "pytest>=8.2,<10.0",
+    "pytest-cov>=5.0,<8.0",
+    "hypothesis>=6.108,<7.0",
+    "pre-commit>=3.7,<5.0",
+    "bandit[toml]>=1.7,<2.0",
+    "pip-audit>=2.7,<3.0",
+    "types-requests",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["Portfolio_via_Streamlit"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "PTH"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["Portfolio_via_Streamlit"]
+
+[tool.mypy]
+# Nota: mesmo com requires-python >=3.11, o target aqui é 3.12 porque o
+# NumPy 2.5+ (dependência transitiva do pandas) usa sintaxe PEP 695 em seus
+# stubs, o que quebra o parser do mypy quando o target é 3.11. O código do
+# projeto continua compatível com 3.11 em runtime — isso afeta só a análise
+# estática dos stubs de terceiros.
+python_version = "3.12"
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "Portfolio_via_Streamlit.domain.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["Portfolio_via_Streamlit/tests"]
+addopts = "-ra --cov=Portfolio_via_Streamlit --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = ["Portfolio_via_Streamlit/tests/*"]
+
+[tool.bandit]
+exclude_dirs = ["Portfolio_via_Streamlit/tests"]
+
+===== ./app.py =====
+"""Entry point. Rodar com: streamlit run app.py
+ 
+Responsabilidades deste arquivo, e so dele:
+- st.set_page_config (deve ser chamado uma unica vez, antes de qualquer
+  outro comando Streamlit).
+- Inicializacao de observabilidade (logging + Sentry) uma vez por processo.
+- Definicao da navegacao nativa (st.navigation/st.Page).
+"""
+
+from __future__ import annotations
+
+import streamlit as st
+
+from Portfolio_via_Streamlit.logging_config import configure_logging
+from Portfolio_via_Streamlit.observability import init_sentry
+
+st.set_page_config(
+    page_title="P. Frey's Creative Showcase",
+    page_icon=":computer:",
+    layout="wide",
+)
+
+configure_logging()
+init_sentry()
+
+from Portfolio_via_Streamlit.presentation.home import home_app  # noqa: E402
+from Portfolio_via_Streamlit.presentation.portfolio import portfolio_app  # noqa: E402
+from Portfolio_via_Streamlit.presentation.price_comparator import price_comparator  # noqa: E402
+from Portfolio_via_Streamlit.presentation.puxa_conversa import puxa_conversa_app  # noqa: E402
+from Portfolio_via_Streamlit.presentation.retirement import retirement_app  # noqa: E402
+
+pages = [
+    st.Page(home_app, title="Home", icon="🏠", default=True),
+    st.Page(portfolio_app, title="My Portfolio", icon="🧑‍💻"),
+    st.Page(retirement_app, title="Retirement App", icon="💰"),
+    st.Page(price_comparator, title="Price Comparator App", icon="🛒"),
+    st.Page(puxa_conversa_app, title="Puxa Conversa", icon="💬"),
+]
+
+navigation = st.navigation(pages)
+navigation.run()
+
+===== ./.pre-commit-config.yaml =====
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        additional_dependencies: [pydantic>=2.7, types-requests]
+        files: ^Portfolio_via_Streamlit/(domain|services)/
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
+
+===== ./render.yaml =====
+services:
+  - type: web
+    name: portfolio-via-streamlit
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PHONE_NUMBER
+        sync: false
+      - key: CALL_ME_BOT_API_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+===== ./Dockerfile =====
+FROM python:3.11-slim AS base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock* ./
+RUN uv sync --no-dev --no-install-project
+
+COPY . .
+RUN uv sync --no-dev
+
+EXPOSE 8501
+
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "uv run streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
+===== ./.github/workflows/ci.yml =====
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  type-check:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run mypy Portfolio_via_Streamlit/domain Portfolio_via_Streamlit/services
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run pytest --cov-report=xml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  security:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run bandit -c pyproject.toml -r Portfolio_via_Streamlit
+      - run: uv run pip-audit
+
+===== ./.github/dependabot.yml =====
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(ci)"
+
